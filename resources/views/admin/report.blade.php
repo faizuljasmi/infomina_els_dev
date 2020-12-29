@@ -546,6 +546,5 @@ function resetForm() {
     window.location.href = "{{ route('search') }}";
 
 }
-
 </script>
 @endsection

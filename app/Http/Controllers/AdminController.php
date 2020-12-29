@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Datatables;
 use DB;
 use Input;
+use Auth;
 use App\User;
 use App\History;
 use App\LeaveType;
@@ -19,11 +20,15 @@ use App\LeaveBalance;
 use App\LeaveEarning;
 use App\TakenLeave;
 use App\ApprovalAuthority;
+use App\LeaveEntitlement;
 use Illuminate\Notifications\Notifiable;
 use Notification;
 use App\Notifications\StatusUpdate;
+use App\Notifications\ProrateUpdate;
 use App\BroughtForwardLeave;
 use App\BurntLeave;
+use Illuminate\Foundation\Auth\AuthenticatesUsers;
+use Carbon\Carbon;
 
 class AdminController extends Controller
 {
@@ -93,6 +98,10 @@ class AdminController extends Controller
         ->where('leave_type_id', '1')
         ->first();
 
+        $replacement_balance = LeaveBalance::where('user_id', $leave_app->user_id)
+        ->where('leave_type_id', '12')
+        ->first();
+
         $taken_leave = TakenLeave::where('user_id', $leave_app->user_id)
         ->where('leave_type_id', $leave_app->leave_type_id)
         ->first();
@@ -101,27 +110,88 @@ class AdminController extends Controller
             if ( $new_status == "APPROVE" ) {
                 $leave_app->status = "4";
 
-                if ( $leave_app->leave_type_id != '12' ) { // If leave type is not replacement leave
-                    if($leave_app->total_days > $leave_bal->no_of_days){
-                        return back()->with('error', 'Employee does not have enough leave balance');
+                //If leave type is replacement
+                if($leave_app->leave_type_id == '12'){
+                    if($leave_app->remarks == "Claim"){
+                        //Add replacement leave earning
+                        $leave_earn->no_of_days += $leave_app->total_days;
+                        //Add to annual leave balance
+                        $replacement_balance->no_of_days += $leave_app->total_days;
                     }
-                    $leave_bal->no_of_days -= $leave_app->total_days; // Deduct the days in leave balances
-                    $taken_leave->no_of_days += $leave_app->total_days; // Add days in leaves taken
-                } else {
-                    $leave_earn->no_of_days += $leave_app->total_days; // Add days in leave earning
-                    $annual_balance->no_of_days += $leave_app->total_days; // Also add days in annual leave balances
-                }
+                    elseif($leave_app->remarks == "Apply"){
 
-                if ( $leave_app->leave_type_id == '3') { // If leave type is sick leave
-                    $hosp_balance->no_of_days -= $leave_app->total_days; // Deduct also in hospitalization leaves
+                        //Get the claim application related to this use replacement application
+                        $this_claim_apply = ReplacementRelation::where('leave_id',$leave_app->id)->first();
+                        $claimApp = LeaveApplication::where('id', $this_claim_apply->claim_id)->first();
+                        //Get related claim records
+                        $all_claim_apply = ReplacementRelation::where('claim_id',$this_claim_apply->claim_id)->get();
+                        $total_days = 0;
+                        foreach($all_claim_apply as $aca){
+                            $leaveApp = LeaveApplication::where('id',$aca->leave_id)->first();
+                            if($leaveApp->status != 'CANCELLED'){
+                                $total_days += $leaveApp->total_days;
+                            }
+                        }
+                        //If the total days is fully used including this application, set the claim application status to TAKEN,
+                        if($total_days == $claimApp->total_days){
+                            $claimApp->status = "TAKEN";
+                            $claimApp->save();
+                        }
+                        elseif($total_days > $claimApp->total_days){
+                            $leave_app->status = "CANCELLED";
+                            $leave_app->save();
+                            return redirect()->to('/admin')->with('error', 'Employee does not have enough replacement leave balance. The leave has been cancelled.');
+                        }
+                        //Add replacement taken leave
+                        $taken_leave->no_of_days += $leave_app->total_days;
+                        //Minum from replacement balance
+                        $replacement_balance->no_of_days -= $leave_app->total_days;
+                    }
                 }
-
-                if ( $leave_app->leave_type_id == '6') { // If leave type is emergency leave
+                //If leave type is sick leave
+                if($leave_app->leave_type_id == '3'){
+                    //Substract from hospitalization balance as well
+                    $hosp_balance->no_of_days -= $leave_app->total_days;
+                }
+                //If leave type is emergency leave
+                if($leave_app->leave_type_id == '6'){
+                    //Check annual balance
                     if($leave_app->total_days >  $annual_balance->no_of_days){
                         return back()->with('error', 'Employee does not have enough leave balance');
                     }
-                    $annual_balance->no_of_days -= $leave_app->total_days; // Deduct also in annual leaves
+                    //Subtract from annual leave balance as well
+                    $annual_balance->no_of_days -= $leave_app->total_days;
                 }
+                //For the rest of the leave type other than replacement
+                if($leave_app->leave_type_id != '12'){
+                    //Add taken leave days
+                    $taken_leave->no_of_days += $leave_app->total_days;
+                    //Subtract leave balance
+                    $leave_bal->no_of_days -= $leave_app->total_days;
+                }
+
+
+                // if ( $leave_app->leave_type_id != '12' ) { // If leave type is not replacement leave
+                //     if($leave_app->total_days > $leave_bal->no_of_days){
+                //         return back()->with('error', 'Employee does not have enough leave balance');
+                //     }
+                //     $leave_bal->no_of_days -= $leave_app->total_days; // Deduct the days in leave balances
+                //     $taken_leave->no_of_days += $leave_app->total_days; // Add days in leaves taken
+                // } else {
+                //     $leave_earn->no_of_days += $leave_app->total_days; // Add days in leave earning
+                //     $annual_balance->no_of_days += $leave_app->total_days; // Also add days in annual leave balances
+                // }
+
+                // if ( $leave_app->leave_type_id == '3') { // If leave type is sick leave
+                //     $hosp_balance->no_of_days -= $leave_app->total_days; // Deduct also in hospitalization leaves
+                // }
+
+                // if ( $leave_app->leave_type_id == '6') { // If leave type is emergency leave
+                //     if($leave_app->total_days >  $annual_balance->no_of_days){
+                //         return back()->with('error', 'Employee does not have enough leave balance');
+                //     }
+                //     $annual_balance->no_of_days -= $leave_app->total_days; // Deduct also in annual leaves
+                // }
 
             } else if ( $new_status == "REJECT" ) {
 
@@ -138,6 +208,20 @@ class AdminController extends Controller
 
                     if ( $leave_app->leave_type_id == '6') { // If leave type is emergency leave
                         $annual_balance->no_of_days += $leave_app->total_days; // Add also in annual leaves
+                    }
+
+                    if( $leave_app->leave_type_id == '12'){ //If leave type is replacement
+                        $leave_earn->no_of_days -= $leave_app->total_days; //Subtract replacement leave earned
+                        $replacement_balance->no_of_days -= $leave_app->total_days; //Subtract annual leave balance
+
+                        //Get the claim application related to this use replacement application
+                        $this_claim_apply = ReplacementRelation::where('leave_id',$leave_app->id)->first();
+                        $claimApp = LeaveApplication::where('id', $this_claim_apply->claim_id)->first();
+                        if($claimApp->status == "TAKEN"){
+                            $claimApp->status = 'APPROVED';
+                            $claimApp->save();
+                        }
+                        $this_claim_apply->delete();
                     }
                 }
                 $leave_app->status = "7";
@@ -157,6 +241,20 @@ class AdminController extends Controller
 
                     if ( $leave_app->leave_type_id == '6') { // If leave type is emergency leave
                         $annual_balance->no_of_days += $leave_app->total_days; // Add also in annual leaves
+                    }
+
+                    if( $leave_app->leave_type_id == '12'){ //If leave type is replacement
+                        $leave_earn->no_of_days -= $leave_app->total_days; //Subtract replacement leave earned
+                        $replacement_balance->no_of_days -= $leave_app->total_days; //Subtract annual leave balance
+
+                        //Get the claim application related to this use replacement application
+                        $this_claim_apply = ReplacementRelation::where('leave_id',$leave_app->id)->first();
+                        $claimApp = LeaveApplication::where('id', $this_claim_apply->claim_id)->first();
+                        if($claimApp->status == "TAKEN"){
+                            $claimApp->status = 'APPROVED';
+                            $claimApp->save();
+                        }
+                        $this_claim_apply->delete();
                     }
                 }
                 $leave_app->status = "8";
@@ -499,10 +597,8 @@ class AdminController extends Controller
     public function export_leave_balance()
     {
         $annual = User::leftjoin('leave_balances', 'leave_balances.user_id', '=', 'users.id')
+        ->select('users.id as user_id', 'users.*', 'leave_balances.*')
         ->where('leave_balances.leave_type_id', '=', '1' )->get();
-
-        $annual_total = User::leftjoin('leave_entitlements', 'leave_entitlements.emp_type_id', '=', 'users.emp_type_id')
-        ->where('leave_entitlements.leave_type_id', '=', '1' )->get();
 
         $brought_forw = User::leftjoin('brought_forward_leaves', 'brought_forward_leaves.user_id', '=', 'users.id')
         ->where('brought_forward_leaves.leave_type_id', '=', '1' )->get();
@@ -573,9 +669,13 @@ class AdminController extends Controller
         $sheet->getStyle('O')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
         $sheet->setCellValue('O1', 'Replacement');
         $sheet->getStyle('P')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
-        $sheet->setCellValue('P1', 'Total Annaul Ent');
+        $sheet->setCellValue('P1', 'Total Annual Ent');
         $sheet->getStyle('Q')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
-        $sheet->setCellValue('Q1', 'Total Brought Forw');
+        $sheet->setCellValue('Q1', 'Total Annual Earn');
+        $sheet->getStyle('R')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        $sheet->setCellValue('R1', 'Join Date');
+        $sheet->getStyle('S')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+        $sheet->setCellValue('S1', 'Total Brought Forw');
         $rows = 2;
 
         $countapp = count($annual);
@@ -636,13 +736,31 @@ class AdminController extends Controller
                 $sheet->getColumnDimension('O')->setAutoSize(true);
                 $sheet->setCellValue('O' . $rows, $replacement[$d]->no_of_days);
             }
-            if ( $annual_total ) {
+            if ( $annual ) {
                 $sheet->getColumnDimension('P')->setAutoSize(true);
-                $sheet->setCellValue('P' . $rows, $annual_total[$d]->no_of_days);
+                $sheet->getColumnDimension('Q')->setAutoSize(true);
+                $sheet->getColumnDimension('R')->setAutoSize(true);
+
+                $this_emp_type = $annual[$d]->emp_type_id;
+                $this_user_id = $annual[$d]->user_id;
+
+                $total_ent = LeaveEntitlement::where('emp_type_id', $this_emp_type)
+                ->where('leave_type_id', '1')->first();
+
+                $total_earn = LeaveEarning::where('user_id', $this_user_id)
+                ->where('leave_type_id', '1')->first();
+
+                // dd($total_earn);
+
+                $join_date = User::where('id', $this_user_id)->first();
+
+                $sheet->setCellValue('P' . $rows, $total_ent->no_of_days);
+                $sheet->setCellValue('Q' . $rows, $total_earn->no_of_days);
+                $sheet->setCellValue('R' . $rows, $join_date->join_date);
             }
             if ( $brought_forw ) {
-                $sheet->getColumnDimension('Q')->setAutoSize(true);
-                $sheet->setCellValue('Q' . $rows, $brought_forw[$d]->no_of_days);
+                $sheet->getColumnDimension('S')->setAutoSize(true);
+                $sheet->setCellValue('S' . $rows, $brought_forw[$d]->no_of_days);
             }
             $rows++;
         }
@@ -662,7 +780,7 @@ class AdminController extends Controller
         foreach($users as $user){
             foreach($bfwd as $bf){
                 if($user->id == $bf->user_id){
-                    $ann_taken_first_half = LeaveApplication::where('user_id',$user->id)->where('status','Approved')->where('leave_type_id',1)->where('created_at' ,'<=', '2020-06-30')->get();
+                    $ann_taken_first_half = LeaveApplication::where('user_id',$user->id)->where('status','Approved')->where('leave_type_id',1)->whereBetween('created_at' ,['2021-01-01', '2021-06-30'])->get();
                     $cur_ann_leave_bal = LeaveBalance::where('user_id',$user->id)->where('leave_type_id',1)->first();
                     $total_days = 0;
                     foreach($ann_taken_first_half as $ann){
@@ -686,5 +804,36 @@ class AdminController extends Controller
             }
         }
         dd("Done");
+    }
+
+    public function sso_login(Request $request){
+
+        // $response = Http::post('https://wspace.io/api/other/validate-token', [
+        //     'token' => $token,
+        // ]);
+            $endpoint = "https://wspace.io/api/other/validate-token";
+            $client = new \GuzzleHttp\Client(['http_errors' => false]);
+            $token = $request->token;
+
+            $response = $client->request('POST', $endpoint, [
+                'form_params' => [
+                    'token' => $token
+                ]
+            ]);
+
+            // url will be: http://my.domain.com/test.php?key1=5&key2=ABC;
+
+            $statusCode = $response->getStatusCode();
+            $content = $response->getBody();
+
+            // or when your server returns json
+            $content = json_decode($response->getBody(), true);
+            if(array_key_exists('error', $content)){
+                return redirect('/');
+            }
+            else{
+                Auth::loginUsingId($content['data']['id']);
+                return redirect('home');
+            }
     }
 }

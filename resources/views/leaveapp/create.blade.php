@@ -89,16 +89,59 @@
                                         <select class="form-control" name="leave_type_id" id="leave_type_id" required>
                                             <option value="">Choose Leave</option>
                                             @foreach($leaveType as $lt)
-                                            @if($lt->name == 'Replacement')
-                                            @else
                                             <option value="{{$lt->id}}"
                                                 {{ (old('leave_type_id') == $lt->id ? "selected":"") }}>{{$lt->name}}
                                             </option>
-                                            @endif
                                             @endforeach
                                         </select>
                                         <div class="invalid-feedback">
                                             Please choose a leave type
+                                        </div>
+                                        <div class="valid-feedback">
+                                            Looks good!
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Available Replacement Leave -->
+                                @if($all_rep_claims)
+                                    @foreach($all_rep_claims as $all_rep_claim)
+                                        @foreach($all_rep_claim->replacement_applications as $ra)
+                                            <input type="hidden" name="replacement_applications" value="{{$ra->claim_id}}" data-days="{{$ra->application->total_days}}" data-status="{{$ra->application->status}}">
+                                        @endforeach
+                                    @endforeach
+                                @endif
+
+                                <div id="rep_leave_div" class="form-group d-none">
+                                    <label>Available Claim(s) <font color="red">*</font></label>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <span class="input-group-text">
+                                                <i class="far fa-star"></i>
+                                            </span>
+                                        </div>
+                                        <select class="form-control" name="available_leave" id="available_leave" required>
+                                            <option value="">Select Replacement Claim</option>
+                                            @foreach($all_rep_claims as $all_rep_claim)
+                                            <?php 
+                                                $total_used = 0;
+                                                $apps = $all_rep_claim->replacement_applications;
+                                                foreach($apps as $app){
+                                                    $status = $app->application->status;
+                                                    if ($status == "APPROVED" || $status == "PENDING_1" || $status == "PENDING_2" || $status == "PENDING_3") {
+                                                        $total_used += $app->leave_total_days;
+                                                    }
+                                                }
+                                            ?>
+                                            @if (($all_rep_claim->total_days - $total_used) > 0)
+                                                <option value="{{$all_rep_claim->id}}" data-total-days="{{$all_rep_claim->total_days}}" data-event-date="{{$all_rep_claim->date_from}}">
+                                                        {{$all_rep_claim->date_from}} - {{$all_rep_claim->date_to}} | {{$all_rep_claim->reason}} | Day(s) : {{$all_rep_claim->total_days - $total_used}}
+                                                </option>
+                                            @endif
+                                            @endforeach
+                                        </select>
+                                        <div class="invalid-feedback">
+                                            Please choose available replacement claim.
                                         </div>
                                         <div class="valid-feedback">
                                             Looks good!
@@ -287,6 +330,12 @@
                                     value="{{isset($leaveAuth->authority_2_id) ? $leaveAuth->authority_2_id:'' }}" />
                                 <input style="display:none;" type="text" name="approver_id_3"
                                     value="{{isset($leaveAuth->authority_3_id) ? $leaveAuth->authority_3_id: ''}}" />
+
+                                <!-- Replacement Action -->
+                                <input style="display:none;" type="text" name="replacement_action" id="replacement_action" value="" />
+                                
+                                <!-- Claim ID -->
+                                <input style="display:none;" type="text" name="claim_id" id="claim_id" value="" />
 
                                 <!-- Submit Button -->
                                 <button type="submit" class="btn btn-success float-right">Submit</button>
@@ -525,13 +574,78 @@
     <script>
         $(document).ready(MainLeaveApplicationCreate);
 
-$("#leave_type_id").change(function() {
+        // Global variables for replacement leaves.
+        var leave_type = "";
+        var event_date = "";
+        var count_balance = 0;
+
+        $("#leave_type_id").change(function() {
             $("#FromDate").val("");
             $("#ToDate").val("");
+
+            leave_type = $("#leave_type_id").val();
+
+            if (leave_type == 12) {
+                $("#rep_leave_div").removeClass("d-none");
+
+                $("#FromDate").attr("disabled", true);
+                $("#ToDate").attr("disabled", true);
+
+                $("#replacement_action").val("Apply");
+            } else {
+                $("#rep_leave_div").addClass("d-none");
+
+                $("#FromDate").attr("disabled", false);
+                $("#ToDate").attr("disabled", false);
+
+                $("#replacement_action").val("");
+            }
         });
 
-$("#FromDate").change(function() {
-        var from = $("#FromDate").val();
+        $("#available_leave").change(function() {
+            var count_pending = 0;
+            var count_approved = 0;
+            var taken_replacement = 0;
+            count_balance = 0;
+            event_date = "";
+            claim_id = "";
+            
+            var claim_id = this.value;
+            $("#claim_id").val(claim_id);
+
+            var claimed_days = $(this).find(':selected').data('total-days'); // To get total submitted days of claim.
+            event_date = $(this).find(':selected').data('event-date'); // To get event date of claim.
+
+            // If claimed more than one day.
+            if (claimed_days > 1) {
+                $("input[name='replacement_applications']").each(function () {
+                    var prev_apply = this.value;
+                    // If there are leave applications submitted with the same claim selected.
+                    if (prev_apply == claim_id) {
+                        // To get all previous leave application data using this claimed replacement leave.
+                        let data = $(this).data();
+                        var prev_apply_status = data.status;
+                        var prev_apply_days = data.days;
+
+                        if (prev_apply_status == "APPROVED" || prev_apply_status == "PENDING_1" || prev_apply_status == "PENDING_2" || prev_apply_status == "PENDING_3") {
+                            // Calculate total days taken previously.
+                            taken_replacement += prev_apply_days;
+                        }
+                    }
+                });
+                // Calculate current balance.
+                count_balance = claimed_days - taken_replacement;
+                if (taken_replacement > 0) {
+                    alert("You have used "+taken_replacement+"/"+claimed_days+" day(s) of replacement leave from this claim. Thus, your balance leave for this claim will be "+count_balance+" day(s).");
+                }
+            }
+
+            $("#FromDate").attr("disabled", false);
+            $("#ToDate").attr("disabled", false);
+        });
+
+        $("#FromDate").change(function() {
+            var from = $("#FromDate").val();
             $("#ToDate").val("");
             $("#ToDate").attr({
                  "min" : from          // values (or variables) here
@@ -608,7 +722,7 @@ $('#reason').keyup(function() {
       isCalamityLeave : function(){
         return _form.get(FC.leave_type_id) == "2";
       },
-       isSickLeave : function(){
+        isSickLeave : function(){
         return _form.get(FC.leave_type_id) == "3";
       },
       isHospitalizationLeave : function(){
@@ -687,49 +801,78 @@ $('#reason').keyup(function() {
 		if(userGroup == 'Support Engineer' || userGroup == 'ICSC' || userGroup == 'Helpdesk'){
 			let next2 = calendar.nextDay(calendar.today());
           		next2 = calendar.nextDay(next2);
+                next2 = calendar.nextDay(next2);
           		next2 = calendar.getDateDb(next2);
           		if(calendar.isDateSmaller(date_from, calendar.today())){
             			return "Attention: Annual leave cannot be applied on passed dates.";
           		}
           		if(calendar.isDateSmaller(date_from, next2)){
-            			return "Attention: Annual leave must be applied at least 2 days prior to the leave date.";
+            			return "Attention: Annual leave must be applied at least 3 days prior to the leave date.";
           		}
 		}
 		else{
           		let next2 = calendar.getNextWorkingDay(calendar.today());
           		next2 = calendar.getNextWorkingDay(next2);
+                next2 = calendar.getNextWorkingDay(next2);
           		next2 = calendar.getDateDb(next2);
           		if(calendar.isDateSmaller(date_from, calendar.today())){
             			return "Attention: Annual leave cannot be applied on passed dates.";
           		}
           		if(calendar.isDateSmaller(date_from, next2)){
-            			return "Attention: Annual leave must be applied at least 2 days prior to the leave date.";
+            			return "Attention: Annual leave must be applied at least 3 days prior to the leave date.";
           		}
 		}
         }
 
         if(validation.isTrainingLeave()){
-            let nextMonth = calendar.nextMonth(calendar.today());
-            let prevWeek = calendar.getPrevWeekWorkingDay(calendar.today());
-            prevWeek = calendar.getPrevWeekWorkingDay(prevWeek);
-            if(calendar.isDateSmaller(date_from,prevWeek)){
-                return "Attention: Training Leave must be applied within 7 days after the training day."
+            // let nextMonth = calendar.nextMonth(calendar.today());
+            // let prevWeek = calendar.getPrevWeekWorkingDay(calendar.today());
+            // prevWeek = calendar.getPrevWeekWorkingDay(prevWeek);
+            // if(calendar.isDateSmaller(date_from,prevWeek)){
+            //     return "Attention: Training Leave must be applied within 7 days after the training day."
+            // }
+            // if(calendar.isDateBigger(date_from,nextMonth)){
+            //     return "Attention: Training Leave cannot be applied more than a month in advance."
+            // }
+            let next2 = calendar.getNextWorkingDay(calendar.today());
+                  next2 = calendar.getNextWorkingDay(next2);
+                  next2 = calendar.getNextWorkingDay(next2);
+                  next2 = calendar.getNextWorkingDay(next2);
+                  next2 = calendar.getNextWorkingDay(next2);
+                  next2 = calendar.getNextWorkingDay(next2);
+                  next2 = calendar.getNextWorkingDay(next2);
+          		next2 = calendar.getDateDb(next2);
+          		if(calendar.isDateSmaller(date_from, calendar.today())){
+            			return "Attention: Training leave cannot be applied on passed dates.";
+          		}
+          		if(calendar.isDateSmaller(date_from, next2)){
+            			return "Attention: Training leave must be applied at least 7 days prior to the training day.";
+          		}
+        }
+
+        // REPLACEMENT POLICY
+        if (validation.isReplacementLeave()) {
+            var date_event = new Date(event_date);
+            var date_allow = new Date(date_from);
+
+            date_event.setDate(date_event.getDate() + 30); // Add 30 days.
+            date_allow.setDate(date_allow.getDate() + count_balance); // Add the balance days of the claim.
+
+            if(calendar.isDateBigger(date_from, date_event)){
+                return "Attention: This replacement claim should be utilized within 30 days from the claimed event date.";
             }
-            if(calendar.isDateBigger(date_from,nextMonth)){
-                return "Attention: Training Leave cannot be applied more than a month in advance."
+            if(calendar.isDateBigger(date_to, date_allow) || calendar.isDateEqual(date_to, date_allow)){
+                return "Attention: You have insufficient leave balance from this claim to apply until this date.";
             }
         }
 
         //SICK, EMERGENCY, PATERNITY, COMPASSIONATE, CALAMITY POLICY
         if(validation.isSickLeave() || validation.isEmergencyLeave() || validation.isPaternityLeave() || validation.isCompassionateLeave() || validation.isCalamityLeave()){
-          let prev3 = calendar.getPrevWeekWorkingDay(calendar.today());
-          prev3 = calendar.getPrevWeekWorkingDay(prev3);
-          prev3 = calendar.getPrevWeekWorkingDay(prev3);
-          prev3 = calendar.getPrevWeekWorkingDay(prev3);
-	  prev3 = calendar.getPrevWeekWorkingDay(prev3);
+          let prev3 = calendar.getThreePrevWorkingDay(calendar.today());
+          prev3 = calendar.getDateDb(prev3);
           prev3 = calendar.getDateDb(prev3);
           if(calendar.isDateSmaller(date_from, prev3) || calendar.isDateEqual(date_from, prev3)){
-            return "Attention: Leave must be applied within 7 working days after the day of leave.";
+            return "Attention: Leave must be applied within 3 working days after the day of leave.";
           }
           if(calendar.isDateBigger(date_from, calendar.today())){
             return "Attention: Leave cannot be applied in advance.";
@@ -740,29 +883,27 @@ $('#reason').keyup(function() {
         if(validation.isMaternityLeave()){
         //   let monthFwd = calendar.nextMonth(calendar.today());
         //   monthFwd = calendar.getDateDb(monthFwd);
-            let one_month_before = calendar.prevMonth(calendar.today()); // 30 days before
-            one_month_before = calendar.getDateDb(one_month_before);
+            let one_month_after = calendar.nextMonth(calendar.today()); // 30 days before
+            one_month_after = calendar.getDateDb(one_month_after);
 
         //   if(calendar.isDateSmaller(date_from,monthFwd) || calendar.isDateEqual(date_from,monthFwd)){
-          if(calendar.isDateSmaller(date_from,one_month_before)){ // Not more than 30 days late in applying
+          if(calendar.isDateSmaller(date_from,one_month_after)){ // Not more than 30 days late in applying
+            if(calendar.isDateBigger(date_from, calendar.today())){
             return "Attention: Maternity leave application shall be made not less than one (1) month prior to the date on which it is desired that maternity leave commences."
+            }
           }
           if(calendar.isDateSmaller(date_from, calendar.today())){
-            return "Attention: Maternity leave cannot be applied in advance.";
+            return "Attention: Maternity leave cannot be applied on passed date.";
           }
         }
 
         //HOSPITALIZATION POLICY
         if(validation.isHospitalizationLeave()){
           let prev7 = calendar.getPrevWeekWorkingDay(calendar.today());
-          prev7 = calendar.getPrevWeekWorkingDay(prev7);
-	  prev7 = calendar.getPrevWeekWorkingDay(prev7);
-          prev7 = calendar.getPrevWeekWorkingDay(prev7);
-          prev7 = calendar.getPrevWeekWorkingDay(prev7);
           prev7 = calendar.getDateDb(prev7);
 
           if(calendar.isDateSmaller(date_from, prev7) || calendar.isDateEqual(date_from, prev7)){
-            return "Attention: Hospitalization leave must be applied within 7 days after the day of leave.";
+            return "Attention: Hospitalization leave must be applied within 7 days after the day of discharged.";
           }
           if(calendar.isDateBigger(date_from, calendar.today())){
             return "Attention: Hospitalization leave cannot be applied in advance.";

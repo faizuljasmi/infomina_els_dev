@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Kyslik\ColumnSortable\Sortable;
 use App\Notifications\PasswordReset;
 
+
 class User extends Authenticatable
 {
     use Notifiable, Sortable;
@@ -20,7 +21,7 @@ class User extends Authenticatable
      */
 
     protected $fillable = [
-        'name', 'staff_id', 'email', 'password', 'user_type', 'emp_type_id', 'emp_group_id', 'emp_group_two_id', 'emp_group_three_id', 'emp_group_four_id', 'emp_group_five_id', 'join_date', 'gender',
+        'name', 'staff_id','branch_id', 'email', 'password', 'user_type', 'emp_type_id', 'emp_group_id', 'emp_group_two_id', 'emp_group_three_id', 'emp_group_four_id', 'emp_group_five_id', 'join_date', 'gender',
         'job_title', 'emergency_contact_name', 'emergency_contact_no',
     ];
 
@@ -136,5 +137,17 @@ class User extends Authenticatable
     public function approval_authority()
     {
         return $this->hasOne(ApprovalAuthority::class);
+    }
+
+    public function branch(){
+        return $this->belongsTo(Branch::class,'branch_id');
+    }
+
+    public function state_holidays(){
+        return $this->branch->state->state_wide_holidays();
+    }
+
+    public function national_holidays(){
+        return $this->branch->country->country_wide_holidays();
     }
 }

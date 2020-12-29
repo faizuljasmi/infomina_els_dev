@@ -12,6 +12,8 @@ namespace App\Http\Controllers;
 
 use App\Holiday;
 use Illuminate\Http\Request;
+use App\Country;
+use App\State;
 use Carbon\Carbon;
 
 class HolidayController extends Controller
@@ -34,8 +36,10 @@ class HolidayController extends Controller
                 $startDate->addDay();
             }
         }
+        $countries = Country::all();
         //dd($all_dates);
-        return view('holiday.index')->with(compact('holidays', 'all_dates'));
+        $states = State::all();
+        return view('holiday.index')->with(compact('holidays', 'all_dates','countries'));
     }
 
 
@@ -53,6 +57,8 @@ class HolidayController extends Controller
         $hol->date_from = $request->date_from;
         $hol->date_to = $request->date_to;
         $hol->total_days = $request->total_days;
+        $hol->state_id = $request->state_id;
+        $hol->country_id = $request->country_id;
         $hol->save();
 
         return redirect()->to('/holiday/view')->with('message', $hol->name . ' created succesfully.');
@@ -66,7 +72,26 @@ class HolidayController extends Controller
      */
     public function edit(Holiday $holiday)
     {
-        return view('holiday.edit')->with(compact('holiday'));
+        $hol_country = $holiday->country;
+        $other_holidays = $hol_country->country_wide_holidays;
+        if($holiday->state != null){
+            $hol_state = $holiday->state;
+            $other_holidays = $other_holidays->merge($hol_state->state_wide_holidays);
+        }
+
+        $all_dates = array();
+        foreach ($other_holidays as $hols) {
+            $startDate = new Carbon($hols->date_from);
+            $endDate = new Carbon($hols->date_to);
+            while ($startDate->lte($endDate)) {
+                $dates = str_replace("-", "", $startDate->toDateString());
+                $all_dates[] = $dates;
+                $startDate->addDay();
+            }
+        }
+        $countries = Country::all();
+        $states = State::where('country_id', $holiday->country_id)->get();
+        return view('holiday.edit')->with(compact('holiday','all_dates','other_holidays','countries','states'));
     }
 
     /**
@@ -82,6 +107,8 @@ class HolidayController extends Controller
         $holiday->date_from = $request->date_from;
         $holiday->date_to = $request->date_to;
         $holiday->total_days = $request->total_days;
+        $holiday->state_id = $request->state_id;
+        $holiday->country_id = $request->country_id;
         $holiday->update();
 
         return redirect()->to('/holiday/view')->with('message', $holiday->name . ' updated succesfully.');

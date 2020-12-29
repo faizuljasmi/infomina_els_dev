@@ -321,6 +321,16 @@
                             <input class="form-control" type="text" placeholder="Position Name" id="job_title"
                                 name="job_title">
                         </div>
+                        <!-- Choose Employee Branch -->
+                        <div class="form-group">
+                            <label for="employee_branch">Branch:</label>
+                            <select class="form-control" id="branch_id" name="branch_id">
+                                <option value="" selected>Please Choose One</option>
+                                @foreach($branches as $branch)
+                                <option value="{{$branch->id}}">{{$branch->name}}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <!-- Enter Join Date -->
                         <div class="form-group">
                             <label for="employee_type">Join Date:</label>
