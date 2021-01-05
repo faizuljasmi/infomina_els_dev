@@ -10,6 +10,8 @@ class LeaveApplication extends Model
     //use Notifiable;
     use Sortable;
 
+    protected $table = 'els_leave_applications';
+
     //Declare Fillable
     protected $fillable = [
         'date_from','date_to', 'date_resume',

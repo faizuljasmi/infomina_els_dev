@@ -8,20 +8,21 @@ use App\LeaveEntitlement;
 
 class EmpType extends Model
 {
-    //
+    protected $table = 'els_emp_types';
+
     protected $fillable = [
         'name',
-        // 'ent_annual', 
+        // 'ent_annual',
         //  'ent_calamity' ,
-        //  'ent_carryfwd', 
+        //  'ent_carryfwd',
         //  'ent_compassionate' ,
-        //  'ent_emergency', 
+        //  'ent_emergency',
         //  'ent_hospitalization' ,
         //  'ent_marriage' ,
-        //  'ent_maternity', 
-        //  'ent_paternity', 
+        //  'ent_maternity',
+        //  'ent_paternity',
         //  'ent_sick' ,
-        //  'ent_training', 
+        //  'ent_training',
         //  'ent_unpaid' ,
     ];
 

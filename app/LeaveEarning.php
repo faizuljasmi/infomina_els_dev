@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class LeaveEarning extends Model
 {
+    protected $table = 'els_leave_earnings';
+
     protected $fillable = [
         'no_of_days',
     ];

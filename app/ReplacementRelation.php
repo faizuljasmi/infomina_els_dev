@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ReplacementRelation extends Model
 {
-    protected $table = 'replacement_claim_apply_relations';
+    protected $table = 'els_replacement_claim_apply_relations';
 
     public function claim(){
         return $this->belongsTo(LeaveApplication::class,'claim_id');

@@ -6,6 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class BroughtForwardLeave extends Model
 {
+
+    protected $table = 'els_brought_forward_leaves
+    ';
     protected $fillable = [
         'no_of-days',
     ];
