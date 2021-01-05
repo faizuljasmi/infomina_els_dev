@@ -14,6 +14,8 @@ class User extends Authenticatable
 {
     use Notifiable, Sortable;
 
+    protected $table = 'els_users';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -94,6 +96,10 @@ class User extends Authenticatable
     public function emp_group_five()
     {
         return $this->belongsTo(EmpGroup::class, 'emp_group_five_id');
+    }
+
+    public function wspace_user(){
+        return $this->belongsTo(WspaceUser::class,'id','els_id');
     }
 
     //One User can lead one group

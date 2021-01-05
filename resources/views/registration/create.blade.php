@@ -58,7 +58,7 @@
                     <table class="table table-sm table-bordered table-striped">
                         <thead>
                             <tr>
-                                <th style="width: 10%" scope="col">Staff Id @sortablelink('staff_id','',[])</th>
+                                <th style="width: 10%" scope="col">Staff Id </th>
                                 <th scope="col">Name @sortablelink('name','',[])</th>
                                 <th style="width: 10%" scope="col">User Type @sortablelink('user_type','',[])</th>
                                 <th style="width: 5%" scope="col">Status</th>
@@ -69,7 +69,7 @@
                             @foreach($activeUsers as $u)
                             @if($u->id != auth()->user()->id && $u->status == 'Active')
                             <tr>
-                                <td>{{$u->staff_id}}</td>
+                                <td>{{$u->wspace_user->staff_id->first()->val}}</td>
                                 <td>{{$u->name}}</td>
                                 <td>{{$u->user_type}}</td>
                                 <td>
