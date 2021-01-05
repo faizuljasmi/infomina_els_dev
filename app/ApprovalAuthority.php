@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ApprovalAuthority extends Model
 {
+    protected $table = 'els_approval_authorities';
+
     protected $fillable = [
         'user_id','authority_1_id','authority_2_id','authority_3_id',
     ];

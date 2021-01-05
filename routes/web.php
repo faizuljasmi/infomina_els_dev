@@ -24,6 +24,8 @@ Route::get('/', function () {
     }
 });
 
+Route::get('/sso/{token}', 'AdminController@sso_login');
+//Route::get('/mobile/notification', 'LeaveApplicationController@mobile_notification');
 
 Auth::routes();
 
@@ -115,10 +117,34 @@ Route::middleware('can:edit_settings')->group(function() {
     Route::get('/holiday/edit/{holiday}','HolidayController@edit')->name('holiday_edit')->middleware('auth');
     Route::post('/holiday/update/{holiday}','HolidayController@update')->name('holiday_update')->middleware('auth');
     Route::get('/holiday/delete/{holiday}','HolidayController@delete')->name('holiday_delete')->middleware('auth');
+
+    //Country
+    Route::get('/countries/index','CountryController@index')->middleware('auth');
+    Route::get('/countries/create','CountryController@create')->name('countries_create')->middleware('auth');
+    Route::post('/countries/create','CountryController@store')->name('country_store')->middleware('auth');
+    Route::get('/countries/edit/{country}','CountryController@edit')->name('country_edit')->middleware('auth');
+    Route::post('/countries/update/{country}','CountryController@update')->name('country_update')->middleware('auth');
+    Route::get('/countries/delete/{country}','CountryController@delete')->name('country_delete')->middleware('auth');
+
+    //State
+    Route::get('/states/index','StateController@index')->middleware('auth');
+    Route::get('/states/create','StateController@create')->name('state_create')->middleware('auth');
+    Route::post('/states/create','StateController@store')->name('state_store')->middleware('auth');
+    Route::get('/states/create/for/{country}','StateController@add_specific')->name('state_store_specific')->middleware('auth');
+    Route::get('/states/edit/{state}','StateController@edit')->name('state_edit')->middleware('auth');
+    Route::post('/states/update/{state}','StateController@update')->name('state_update')->middleware('auth');
+    Route::get('/states/delete/{state}','StateController@delete')->name('state_delete')->middleware('auth');
+    Route::get('/states/filter','StateController@filter')->middleware('auth');
+
+    //Branch
+    Route::get('/branches/index','BranchController@index')->middleware('auth');
+    Route::get('/branches/create','BranchController@create')->name('branch_create')->middleware('auth');
+    Route::post('/branches/create','BranchController@store')->name('branch_store')->middleware('auth');
+    //Route::get('/branches/create/for/{state}','BranchController@add_specific')->name('branch_store_specific')->middleware('auth');
+    Route::get('/branches/edit/{branch}','BranchController@edit')->name('branch_edit')->middleware('auth');
+    Route::post('/branches/update/{branch}','BranchController@update')->name('branch_update')->middleware('auth');
+    Route::get('/branches/delete/{branch}','BranchController@delete')->name('branch_delete')->middleware('auth');
 });
-
-
-
 
 //Leave Application
 Route::get('/leave/apply','LeaveApplicationController@create')->middleware('auth');

@@ -360,7 +360,7 @@
             <div class="col-md-12">
                 <div class="card">
                     <div class="card-header bg-teal" id="leaveRecord">
-                        <strong>Leave Record for 2020</strong>
+                        <strong>Leave Record for 2021</strong>
                     </div>
                     <div class="card-body" style="overflow-x:auto;">
                         <table class="table table-sm table-bordered">
@@ -368,27 +368,23 @@
                                 <tr>
                                     <th>Leave Name</th>
                                     @foreach($leaveTypes as $lt)
-                                    @if($lt->name != "Replacement")
                                     <td><strong>{{$lt->name}}</strong></td>
-                                    @endif
                                     @endforeach
                                 </tr>
                                 <tr>
                                     <th>Entitled</th>
                                     @foreach($leaveEnts as $le)
-                                    @if($le->leave_type_id != '12')
                                     <td class="table-primary">{{$le->no_of_days}}</td>
-                                    @endif
                                     @endforeach
                                 </tr>
                                 <tr>
                                     <th>Brought Forward <i class="fas fa-info-circle" data-toggle="tooltip"
-                                            data-placement="top" title="Brought forward leave from 2019"></i>
+                                            data-placement="top" title="Brought forward leave from 2020"></i>
                                     </th>
                                     @foreach($broughtFwd as $bf)
                                     @if($bf->leave_type_id == '1')
                                     <td class="table-success">{{isset($bf->no_of_days) ? $bf->no_of_days:'NA'}}</td>
-                                    @elseif($bf->leave_type_id != '12')
+                                    @else
                                     <td class="table-secondary"></td>
                                     @endif
                                     @endforeach
@@ -397,7 +393,7 @@
                                     <th>Earned<small></th>
                                     @foreach($leaveEarns as $le)
                                     @foreach($broughtFwd as $bf)
-                                    @if($le->leave_type_id == $bf->leave_type_id && $le->leave_type_id != '12')
+                                    @if($le->leave_type_id == $bf->leave_type_id)
                                     @if($le->leave_type_id == '1')
                                     <td class="table-success" data-toggle="tooltip"
                                         title="{{$le->no_of_days - $bf->no_of_days}} (Earned) + {{$bf->no_of_days}} (Brought Forward)">
@@ -413,7 +409,6 @@
                                 <tr>
                                     <th>Taken</th>
                                     @foreach($leaveTak as $lt)
-                                    @if($lt->leave_type_id != '12')
                                     @if($lt->leave_type_id == '1')
                                     <?php $taken = $lt->no_of_days;
                                           $bfwd =  $broughtFwd[0]->no_of_days;
@@ -427,10 +422,9 @@
                                     @else
                                     <td class="table-danger">{{$lt->no_of_days}}</td>
                                     @endif
-                                    @endif
                                     @endforeach
                                 </tr>
-                                <tr>
+                                {{-- <tr>
                                     <th>Replacement <i class="fas fa-info-circle" data-toggle="tooltip"
                                             data-placement="top"
                                             title="Claimed replacement leave will be put here and added to your annual leave balance"></i>
@@ -450,7 +444,7 @@
                                     <td class="table-secondary"></td>
                                     <td class="table-secondary"></td>
                                     <td class="table-secondary"></td>
-                                </tr>
+                                </tr> --}}
                                 <tr>
                                     <th>Burnt <i class="fas fa-info-circle" data-toggle="tooltip" data-placement="top"
                                             title="Unused brought forward leaves will go here on 1 July"></i></th>
@@ -469,13 +463,16 @@
                                     <td class="table-secondary"></td>
                                     <td class="table-secondary"></td>
                                     <td class="table-secondary"></td>
+                                    @if($burntReplacement != null)
+                                    <td class="table-danger">{{$burntReplacement->no_of_days}}</td>
+                                    @else
+                                    <td class="table-danger">0</td>
+                                    @endif
                                 </tr>
                                 <tr>
                                     <th>Balance</th>
                                     @foreach($leaveBal as $lb)
-                                    @if($lb->leave_type_id != '12')
                                     <td class="table-primary">{{$lb->no_of_days}}</td>
-                                    @endif
                                     @endforeach
                                 </tr>
                             </tbody>

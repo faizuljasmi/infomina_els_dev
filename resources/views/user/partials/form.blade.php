@@ -1,20 +1,20 @@
 <form method="POST" action="{{$action}}">
     {{ csrf_field() }}
     <div class="form-row">
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="name">Name</label>
             <input type="name" class="form-control" id="name" name="name" value="{{$user->name}}">
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="staff_id">Staff ID</label>
             <input type="text" class="form-control" id="staff_id" name="staff_id" value="{{$user->staff_id}}">
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="email">Email</label>
             <input type="email" class="form-control" id="email" name="email" value="{{$user->email}}">
         </div>
         @if (Gate::forUser(Auth::user())->allows('admin-dashboard'))
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">User Type</label>
             <select class="form-control" id="user_type" name="user_type">
                 <option {{isset($user->user_type) && $user->user_type == 'Admin' ? 'selected':''}}>Admin</option>
@@ -24,7 +24,7 @@
             </select>
         </div>
         @endif
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="level">Gender</label>
             <select class="form-control" id="gender" name="gender">
                 <option {{isset($user->gender) && $user->gender == 'Male' ? 'selected':''}}>Male</option>
@@ -32,7 +32,7 @@
             </select>
         </div>
 
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">Employee Type</label>
             <select class="form-control" id="emp_type_id" name="emp_type_id">
                 @foreach($empTypes as $et)
@@ -43,23 +43,33 @@
             </select>
         </div>
 
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">Job Title</label>
             <input type="text" class="form-control" id="job_title" name="job_title" value="{{$user->job_title}}">
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">Join Date</label>
             <input type="date" class="form-control" id="join_date" name="join_date" value="{{$user->join_date}}">
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">Emergency Contact Name</label>
             <input type="text" class="form-control" id="emergency_contact_name" name="emergency_contact_name"
                 value="{{$user->emergency_contact_name}}">
         </div>
-        <div class="form-group col-md-3">
+        <div class="form-group col-md-6">
             <label for="type">Emergency Contact No.</label>
             <input type="text" class="form-control" id="emergency_contact_no" name="emergency_contact_no"
                 value="{{$user->emergency_contact_no}}">
+        </div>
+        <div class="form-group col-md-6">
+            <label for="type">Branch</label>
+            <select class="form-control" id="branch_id" name="branch_id">
+                @foreach($branches as $branch)
+                <option value="{{$branch->id}}"
+                    {{isset($user->branch_id) && $user->branch_id == $branch->id ? 'selected':''}}>{{$branch->name}}
+                </option>
+                @endforeach
+            </select>
         </div>
         <div class="form-group col-md-6">
             <label for="type">Employee Group</label>

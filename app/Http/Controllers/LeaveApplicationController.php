@@ -28,6 +28,7 @@ use App\TakenLeave;
 use App\Holiday;
 use App\EmpGroup;
 use App\History;
+use App\ReplacementRelation;
 use Carbon\Carbon;
 
 class LeaveApplicationController extends Controller
@@ -138,9 +139,12 @@ class LeaveApplicationController extends Controller
       });
 
 
-        $holidays = Holiday::all();
-        $holsPaginated = Holiday::orderBy('date_from', 'ASC')->get()->groupBy(function($val) {
-            return Carbon::parse($val->date_from)->format('F');
+      $state_hols = $user->state_holidays;
+      $natioanl_hols = $user->national_holidays;
+
+      $holidays = $state_hols->merge($natioanl_hols)->sortBy('date_from');
+      $holsPaginated = $holidays->groupBy(function ($val) {
+          return Carbon::parse($val->date_from)->format('F');
       });
 
       //dd($holsPaginated);
@@ -191,7 +195,9 @@ class LeaveApplicationController extends Controller
             }
         }
 
-        return view('leaveapp.create')->with(compact('user', 'leaveType', 'groupMates', 'leaveAuth', 'leaveBal', 'all_dates', 'applied_dates', 'approved_dates', 'myApplication', 'holidays', 'groupLeaveApps', 'holsPaginated', 'myApps'));
+        $all_rep_claims = LeaveApplication::orderBy('date_from', 'ASC')->where('user_id',$user->id)->where('leave_type_id', 12)->where('remarks','Claim')->where('status','APPROVED')->get();
+
+        return view('leaveapp.create')->with(compact('user', 'leaveType', 'groupMates', 'leaveAuth', 'leaveBal', 'all_dates', 'applied_dates', 'approved_dates', 'myApplication', 'holidays', 'groupLeaveApps', 'holsPaginated', 'myApps', 'all_rep_claims'));
     }
 
 
@@ -247,7 +253,7 @@ class LeaveApplicationController extends Controller
         //get all authorities id
 
         //If it is replacement leave claim
-        if ($request->leave_type_id == '12') {
+        if ($request->leave_type_id == '12' && $request->replacement_action == "Claim") {
 
             //If there is no second approver, move the last approver to the 2nd one
             if ($request->approver_id_2 == null) {
@@ -259,10 +265,14 @@ class LeaveApplicationController extends Controller
                 $leaveApp->approver_id_2 = $request->approver_id_2;
                 $leaveApp->approver_id_3 = $request->approver_id_3;
             }
+                $leaveApp->remarks = "Claim";
         } else {
             $leaveApp->approver_id_1 = $request->approver_id_1;
             $leaveApp->approver_id_2 = $request->approver_id_2;
             $leaveApp->approver_id_3 = $request->approver_id_3;
+            if($request->leave_type_id == "12"){
+                $leaveApp->remarks = "Apply";
+            }
         }
 
 
@@ -310,10 +320,40 @@ class LeaveApplicationController extends Controller
 
 
         $leaveApp->save();
+        if($leaveApp->leave_type_id == "12" &&  $leaveApp->remarks == "Apply"){
+
+            $claim_apply = ReplacementRelation::where('claim_id',$request->claim_id)->get();
+            if(!$claim_apply->isEmpty()){
+                $total_days = 0;
+                foreach($claim_apply as $ca){
+                    $rep_apply = LeaveApplication::where('id',$ca->leave_id)->first();
+                    if($rep_apply->status == 'PENDING_1' || $rep_apply->status == 'PENDING_2' || $rep_apply->status == 'PENDING_3'||$rep_apply->status == 'APPROVED'){
+                        $total_days += $rep_apply->total_days;
+                    }
+                    $td = $total_days + $leaveApp->total_days;
+                    if($td > $ca->claim_total_days){
+                        $leaveApp->delete();
+                        return redirect()->to('/leave/apply')->with('error', 'You have fully used the chosen replacement claim. Choose another claim.');
+                    }
+                }
+            }
+                $claim_apply = new ReplacementRelation;
+                //Set Claim ID
+                $claim_apply->claim_id = $request->claim_id;
+                //Get Claim application total days and set
+                $claimApp = LeaveApplication::where('id',$request->claim_id)->first();
+                $claim_apply->claim_total_days =  $claimApp->total_days;
+                //Set Leave ID
+                $claim_apply->leave_id = $leaveApp->id;
+                //Set Leave Total days
+                $claim_apply->leave_total_days =  $leaveApp->total_days;
+                $claim_apply->save();
+        }
         //Send email notification
         //Notification::route('mail', $leaveApp->approver_one->email)->notify(new NewApplication($leaveApp));
 
         $leaveApp->approver_one->notify(new NewApplication($leaveApp));
+        //$this->mobile_notification($leaveApp,"authority_1");
 
         //STORE
         return redirect()->to('/home')->with('message', 'Leave application submitted succesfully');
@@ -459,7 +499,8 @@ class LeaveApplicationController extends Controller
         //status set pending 1
         //get all authorities id
         //If it is replacement leave claim
-        if ($request->leave_type_id == '12') {
+           //If it is replacement leave claim
+           if ($request->leave_type_id == '12' && $request->replacement_action == "Claim") {
 
             //If there is no second approver, move the last approver to the 2nd one
             if ($request->approver_id_2 == null) {
@@ -471,10 +512,14 @@ class LeaveApplicationController extends Controller
                 $leaveApp->approver_id_2 = $request->approver_id_2;
                 $leaveApp->approver_id_3 = $request->approver_id_3;
             }
+                $leaveApp->remarks = "Claim";
         } else {
             $leaveApp->approver_id_1 = $request->approver_id_1;
             $leaveApp->approver_id_2 = $request->approver_id_2;
             $leaveApp->approver_id_3 = $request->approver_id_3;
+            if($request->leave_type_id == "12"){
+                $leaveApp->remarks = "Apply";
+            }
         }
 
 
@@ -627,32 +672,73 @@ class LeaveApplicationController extends Controller
 
             //If the approved leave is a Replacement leave, assign earned to Replacement, and add day balance to Annual
             if ($leaveApplication->leaveType->name == 'Replacement') {
-                $lt = LeaveEarning::where(function ($query) use ($leaveApplication) {
-                    $query->where('leave_type_id', $leaveApplication->leave_type_id)
-                        ->where('user_id', $leaveApplication->user_id);
-                })->first();
+                if($leaveApplication->remarks == "Claim"){
+                    $lt = LeaveEarning::where(function ($query) use ($leaveApplication) {
+                        $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                            ->where('user_id', $leaveApplication->user_id);
+                    })->first();
 
-                $lt->no_of_days += $leaveApplication->total_days;
+                    $lt->no_of_days += $leaveApplication->total_days;
 
-                $lt->save();
+                    $lt->save();
 
-                //Add balance to annual;
-                $lb = LeaveBalance::where(function ($query) use ($leaveApplication) {
-                    $query->where('leave_type_id', '1')
-                        ->where('user_id', $leaveApplication->user_id);
-                })->first();
+                    //Add balance to replacement leave balance;
+                    $lb = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                        $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                            ->where('user_id', $leaveApplication->user_id);
+                    })->first();
 
-                $lb->no_of_days += $leaveApplication->total_days;
-                $lb->save();
+                    $lb->no_of_days += $leaveApplication->total_days;
+                    $lb->save();
 
-                //Record in activity history
-                $hist = new History;
-                $hist->leave_application_id = $leaveApplication->id;
-                $hist->user_id = $user->id;
-                $hist->action = "Approved";
-                $hist->save();
+                    //Record in activity history
+                    $hist = new History;
+                    $hist->leave_application_id = $leaveApplication->id;
+                    $hist->user_id = $user->id;
+                    $hist->action = " Claim Approved";
+                    $hist->save();
 
-                //Send status update email
+                    // $leaveApplication->remarks = "Claim";
+                    // $leaveApplication->save();
+
+                    //Send status update email
+                    $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                    return redirect()->to('/admin')->with('message', 'Replacement leave claim application status updated succesfully');
+                }
+                else if($leaveApplication->remarks == "Apply"){
+                    //Get the claim application related to this use replacement application
+                    $this_claim_apply = ReplacementRelation::where('leave_id',$leaveApplication->id)->first();
+                    $claimApp = LeaveApplication::where('id', $this_claim_apply->claim_id)->first();
+                    //Get related claim records
+                    $all_claim_apply = ReplacementRelation::where('claim_id',$this_claim_apply->claim_id)->get();
+                    $total_days = 0;
+                    foreach($all_claim_apply as $aca){
+                        $leaveApp = LeaveApplication::where('id',$aca->leave_id)->first();
+                        if($leaveApp->status == 'PENDING_1'|| $leaveApp->status == 'PENDING_2'||$leaveApp->status == 'PENDING_3'||$leaveApp->status == 'APPROVED'){
+                            $total_days += $leaveApp->total_days;
+                        }
+                    }
+                    //If the total days is fully used including this application, set the claim application status to TAKEN,
+                    if($total_days == $claimApp->total_days){
+                        $claimApp->status = "TAKEN";
+                        $claimApp->save();
+                    }
+                    elseif($total_days > $claimApp->total_days){
+                        $leaveApplication->status = $old_status;
+                        $leaveApplication->save();
+                        return redirect()->to('/admin')->with('error', 'Employee does not have enough replacement leave balance. The leave has been cancelled.');
+                    }
+                    //If not just leave the status as it is
+
+                    //Minus the user replacement leave balance based on the total days for this application
+                    $ReplacementBal = LeaveBalance::where('leave_type_id','12')->where('user_id',$leaveApplication->user_id)->first();
+                    $ReplacementBal->no_of_days -= $leaveApplication->total_days;
+                    $ReplacementBal->save();
+
+                    $ReplacementTaken = TakenLeave::where('leave_type_id','12')->where('user_id',$leaveApplication->user_id)->first();
+                    $ReplacementTaken->no_of_days += $leaveApplication->total_days;
+                    $ReplacementTaken->save();
+                }
                 $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
                 return redirect()->to('/admin')->with('message', 'Replacement leave application status updated succesfully');
             }
@@ -894,20 +980,56 @@ class LeaveApplicationController extends Controller
 
     public function cancel(LeaveApplication $leaveApplication, Request $request)
     {
+        //If leave has been approved
         if($leaveApplication->status == "APPROVED"){
+            //Get total days of leave application
             $days = $leaveApplication->total_days;
+            //Get number of taken leave for the leave type
             $takenLeave = TakenLeave::where('user_id', $leaveApplication->user_id)->where('leave_type_id', $leaveApplication->leave_type_id)->first();
+            //Get number of leave balance for the leave type
             $leaveBalance = LeaveBalance::where('user_id', $leaveApplication->user_id)->where('leave_type_id', $leaveApplication->leave_type_id)->first();
 
-            $takenLeave->no_of_days -= $days;
-            $leaveBalance->no_of_days += $days;
+            if($leaveApplication->leave_type_id != "12"){
+                //Subtract total days from taken leave
+                $takenLeave->no_of_days -= $days;
+                //Add total days into leave balance
+                $leaveBalance->no_of_days += $days;
+                $takenLeave->save();
+                $leaveBalance->save();
+            }
+
+            //If leave application is Sick leave
             if($leaveApplication->leave_type_id == "3"){
+                //Get leave balance for hospitalization
                 $leaveBal2 = LeaveBalance::where('user_id', $leaveApplication->user_id)->where('leave_type_id', 4)->first();
+                //Add the total days cancelle back to hospitalization balance
                 $leaveBal2->no_of_days += $days;
+                //Save
                 $leaveBal2->save();
             }
-            $takenLeave->save();
-            $leaveBalance->save();
+            //If leave application is replacement leave
+            if($leaveApplication->leave_type_id == "12"){
+                //Get leave earning for replacement leave
+                $leaveEarn = LeaveEarning::where('user_id', $leaveApplication->user_id)->where('leave_type_id', 12)->first();
+                //Get annual leave balance
+                $balanceLeave = LeaveBalance::where('user_id', $leaveApplication->user_id)->where('leave_type_id', 1)->first();
+                //Subtract replacement leave earning
+                $leaveEarn->no_of_days -= $days;
+                //Subtract annual leave balance that has been added before
+                $balanceLeave->no_of_days -= $days;
+                //Save
+                $leaveEarn->save();
+                $balanceLeave->save();
+            }
+            //If leave application is emergency
+            if($leaveApplication->leave_type_id == "6"){
+                //Get leave annual leave balance
+                $leaveBal2 = LeaveBalance::where('user_id', $leaveApplication->user_id)->where('leave_type_id', 1)->first();
+                //Add the total days back into annual leave balance
+                $leaveBal2->no_of_days += $days;
+                //Save
+                $leaveBal2->save();
+            }
         }
         $leaveApplication->remarks = $request->remarks;
         $leaveApplication->remarker_id = auth()->user()->id;
@@ -1273,4 +1395,455 @@ class LeaveApplicationController extends Controller
         //STORE
         return back()->with('message', 'Leave record submitted succesfully');
     }
+
+    public function list(Request $request){
+
+        $user_id = $request->user_id;
+        $user = User::where('id',$user_id)->first();
+        if($user->name == $request->user_name){
+            $leaveApps = LeaveApplication::select('id','user_id','leave_type_id','status','date_from','date_to','apply_for','date_resume','total_days','reason' ,'relief_personnel_id','attachment','updated_at')->where(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_1')
+                    ->where('approver_id_1', $user_id);
+            })->orWhere(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_2')
+                    ->where('approver_id_2', $user_id);
+            })->orWhere(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_3')
+                    ->where('approver_id_3', $user_id);
+            })->with('user','relief_personnel','leaveType')->get();
+
+            $leaveApps->makeVisible('attachment_url')->toArray();
+            return response()->json($leaveApps);
+        }
+        return response()->json("Failed");
+    }
+
+    public function list_my_pending(Request $request){
+
+        $user_id = $request->user_id;
+        $user = User::where('id',$user_id)->first();
+        if($user->name == $request->user_name){
+
+                $leaves = LeaveApplication::where(function ($query) use ($user) {
+                    $query->where('status', 'PENDING_1')
+                        ->where('user_id', $user->id);
+                })->orWhere(function ($query) use ($user) {
+                    $query->where('status', 'PENDING_2')
+                        ->where('user_id', $user->id);
+                })->orWhere(function ($query) use ($user) {
+                    $query->where('status', 'PENDING_3')
+                        ->where('user_id', $user->id);
+                })->orWhere(function ($query) use ($user) {
+                    $query->where('status', 'APPROVED')
+                        ->where('user_id', $user->id);
+                })->orWhere(function ($query) use ($user) {
+                    $query->where('status', 'CANCELLED')
+                        ->where('user_id', $user->id);
+                })->with('user','relief_personnel','leaveType')->get();
+
+
+            $leaves->makeVisible('attachment_url')->toArray();
+            return response()->json($leaves);
+        }
+        return response()->json("Failed");
+    }
+
+    public function pending_count(Request $request){
+
+        $user_id = $request->user_id;
+        $user = User::where('id',$user_id)->first();
+        if($user->name == $request->user_name){
+            $leaveApps = LeaveApplication::where(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_1')
+                    ->where('approver_id_1', $user_id);
+            })->orWhere(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_2')
+                    ->where('approver_id_2', $user_id);
+            })->orWhere(function ($query) use ($user_id) {
+                $query->where('status', 'PENDING_3')
+                    ->where('approver_id_3', $user_id);
+            })->get();
+
+            $total_pending = count($leaveApps);
+
+            return response()->json(['total_pending' => $total_pending]);
+        }
+        return response()->json("Failed");
+    }
+
+    public function mobile_action(Request $request){
+
+        $user_id = $request->user_id;
+        $user = User::where('id',$user_id)->first();
+        $leaveApplication = LeaveApplication::where('id',$request->leave_app_id)->first();
+
+        if($user->name == $request->user_name){
+
+            if($request->action == "Approve"){
+                //Get leave application authorities ID
+                $la_1 = $leaveApplication->approver_id_1;
+                $la_2 = $leaveApplication->approver_id_2;
+                $la_3 = $leaveApplication->approver_id_3;
+
+                $old_status = $leaveApplication->status;
+
+                //If user id same as approver id 1
+                if ($la_1 == $user->id) {
+                    //if no authority 2, terus change to approved
+                    if ($la_2 == null) {
+                        $leaveApplication->status = 'APPROVED';
+                    }
+                    //else update status to pending 2,
+                    else {
+                        $leaveApplication->status = 'PENDING_2';
+
+                        //Notify the second approver
+                        $leaveApplication->approver_two->notify(new NewApplication($leaveApplication));
+                        $this->mobile_notification($leaveApplication, "authority_2");
+                    }
+                }
+                //if user id same as approved id 2
+                else if ($la_2 == $user->id) {
+                    //if no authority 3, terus change to approved
+                    if ($la_3 == null) {
+                        $leaveApplication->status = 'APPROVED';
+                    }
+                    //else update status to pending 3
+                    else {
+                        $leaveApplication->status = 'PENDING_3';
+                        //Notify the third approver
+                        $leaveApplication->approver_three->notify(new NewApplication($leaveApplication));
+                        $this->mobile_notification($leaveApplication, "authority_3");
+                    }
+                }
+                //If user id same as approved id 3, update status to approved
+                else {
+                    $leaveApplication->status = 'APPROVED';
+                }
+                $leaveApplication->update();
+
+                //If the application is approved
+                if ($leaveApplication->status == 'APPROVED') {
+
+                    //If the approved leave is a Replacement leave, assign earned to Replacement, and add day balance to Annual
+                    if ($leaveApplication->leaveType->name == 'Replacement') {
+                        $lt = LeaveEarning::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+
+                        $lt->no_of_days += $leaveApplication->total_days;
+
+                        $lt->save();
+
+                        //Add balance to annual;
+                        $lb = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', '1')
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+
+                        $lb->no_of_days += $leaveApplication->total_days;
+                        $lb->save();
+
+                        //Record in activity history
+                        $hist = new History;
+                        $hist->leave_application_id = $leaveApplication->id;
+                        $hist->user_id = $user->id;
+                        $hist->action = "Approved";
+                        $hist->save();
+
+                        //Send status update email
+                        $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                        $this->mobile_notification($leaveApplication, "employee");
+                        return response()->json("Success");
+                        // return redirect()->to('/admin')->with('message', 'Replacement leave application status updated succesfully');
+                    }
+
+                    //If the approved leave is a Sick leave, deduct the amount taken in both sick leave and hospitalization balance
+                    if ($leaveApplication->leaveType->name == 'Sick') {
+                        //Add in amount sick leave taken
+                        $lt = TakenLeave::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $lt->no_of_days += $leaveApplication->total_days;
+                        $lt->save();
+
+                        //Deduct balance in sick leave balance
+                        $sickBalance = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', '3')
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $sickBalance->no_of_days -= $leaveApplication->total_days;
+                        $sickBalance->save();
+
+                        //Deduct balance in hosp leave balance
+                        $hospBalance = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', '4')
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $hospBalance->no_of_days -= $leaveApplication->total_days;
+                        $hospBalance->save();
+
+                        //Record in activity history
+                        $hist = new History;
+                        $hist->leave_application_id = $leaveApplication->id;
+                        $hist->user_id = $user->id;
+                        $hist->action = "Approved";
+                        $hist->save();
+
+                        //Send status update email
+                        $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                        $this->mobile_notification($leaveApplication, "employee");
+                        return response()->json("Success");
+                        // return redirect()->to('/admin')->with('message', 'Sick leave application status updated succesfully');
+                    }
+
+                    //If the approved leave is an emergency leave, deduct the taken amount to Annual Leave
+                    if ($leaveApplication->leaveType->name == 'Emergency') {
+                        //Add in amount emergency leave taken
+                        $lt = TakenLeave::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $lt->no_of_days += $leaveApplication->total_days;
+                        $lt->save();
+
+                        //Deduct balance in emergency leave balance
+                        $emBalance = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', '6')
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $emBalance->no_of_days -= $leaveApplication->total_days;
+                        $emBalance->save();
+
+                        //Deduct balance in annual leave
+                        $annBalance = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', '1')
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        if($leaveApplication->total_days >  $annBalance->no_of_days){
+                            $leaveApplication->status = $old_status;
+                            $leaveApplication->update();
+                            //  return redirect()->to('/admin')->with('error', 'Employee does not have enough leave balance');
+                             return response()->json("Failed: Employee does not have enough leave balance");
+                        }
+                        $annBalance->no_of_days -= $leaveApplication->total_days;
+                        $annBalance->save();
+                        //dd($annBalance->no_of_days);
+
+                        //Record in activity history
+                        $hist = new History;
+                        $hist->leave_application_id = $leaveApplication->id;
+                        $hist->user_id = $user->id;
+                        $hist->action = "Approved";
+                        $hist->save();
+
+                        //Send status update email
+                        $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                        $this->mobile_notification($leaveApplication,"employee");
+                        return response()->json("Success");
+                        // return redirect()->to('/admin')->with('message', 'Emergency leave application status updated succesfully');
+                    }
+
+                    //Update leave taken table
+                    //Check for existing record
+                    $dupcheck = TakenLeave::where(function ($query) use ($leaveApplication) {
+                        $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                            ->where('user_id', $leaveApplication->user_id);
+                    })->first();
+
+                    //If does not exist, create new
+                    if ($dupcheck == null) {
+                        $tl = new TakenLeave;
+                        $tl->leave_type_id = $leaveApplication->leave_type_id;
+                        $tl->user_id = $leaveApplication->user_id;
+                        $tl->no_of_days = $leaveApplication->total_days;
+                        $tl->save();
+                    }
+                    //else update existing
+                    else {
+                        $dupcheck->no_of_days += $leaveApplication->total_days;
+                        $dupcheck->save();
+                    }
+
+                    //Update leave balance table
+                    //Check for existing record
+                    $dupcheck2 = LeaveBalance::where(function ($query) use ($leaveApplication) {
+                        $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                            ->where('user_id', $leaveApplication->user_id);
+                    })->first();
+
+                    //If does not exist, create new
+                    if ($dupcheck2 == null) {
+                        $lb = new LeaveBalance;
+                        $lb->leave_type_id = $leaveApplication->leave_type_id;
+                        $lb->user_id = $leaveApplication->user_id;
+                        $le = LeaveEarning::where(function ($query) use ($leaveApplication) {
+                            $query->where('leave_type_id', $leaveApplication->leave_type_id)
+                                ->where('user_id', $leaveApplication->user_id);
+                        })->first();
+                        $lb->no_of_days = $le->no_of_days - $leaveApplication->total_days;
+                        $lb->save();
+                    }
+                    //else update existing
+                    else {
+                        if($leaveApplication->total_days > $dupcheck2->no_of_days){
+                            // return redirect()->to('/admin')->with('error', 'Employee does not have enough leave balance');
+                            return response()->json("Failed: Employee does not have enough leave balance");
+                        }
+                        else{
+                            $dupcheck2->no_of_days -= $leaveApplication->total_days;
+                            $dupcheck2->save();
+                        }
+                    }
+                }
+
+                //Record in activity history
+                $hist = new History;
+                $hist->leave_application_id = $leaveApplication->id;
+                $hist->user_id = $user->id;
+                $hist->action = $leaveApplication->status;
+                $hist->save();
+
+
+
+                //Send status update email
+                $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                $this->mobile_notification($leaveApplication,"employee");
+                return response()->json("Success");
+            }
+            else{
+
+                //Get leave application authorities ID
+                $la_1 = $leaveApplication->approver_id_1;
+                $la_2 = $leaveApplication->approver_id_2;
+                $la_3 = $leaveApplication->approver_id_3;
+
+                //If user id same as approver id 1
+                if ($la_1 == $user->id) {
+                    $leaveApplication->status = 'DENIED_1';
+                }
+                //if user id same as approved id 2
+                else if ($la_2 == $user->id) {
+                    $leaveApplication->status = 'DENIED_2';
+                }
+                //If user id same as approved id 3,
+                else {
+                    $leaveApplication->status = 'DENIED_3';
+                }
+                $leaveApplication->remarks = $request->remarks;
+                $leaveApplication->remarker_id = $request->user_id;
+                $leaveApplication->update();
+
+                //Record in activity history
+                $hist = new History;
+                $hist->leave_application_id = $leaveApplication->id;
+                $hist->user_id = $user->id;
+                $hist->action = "Denied";
+                $hist->save();
+
+                //Send status update email
+                $leaveApplication->user->notify(new StatusUpdate($leaveApplication));
+                return response()->json("Success");
+                }
+            }
+        return response()->json("Failed");
+    }
+
+
+    public function mobile_notification(LeaveApplication $leaveApplication, $personnel){
+        $endpoint = "https://wspace.io/api/push-notification/android";
+        $client = new \GuzzleHttp\Client(['http_errors' => false]);
+        $leave_type = $leaveApplication->leaveType->name;
+        $user_id = $leaveApplication->user_id;
+        $title = "";
+        $body = "";
+        //dd($personnel);
+        if($personnel == "employee"){
+            $user_id = $leaveApplication->user_id;
+            if($leaveApplication->status == "APPROVED"){
+                $title = "Leave Application Approved";
+                $body = "Your ".$leave_type." leave application has been approved.";
+                if($leaveApplication->leave_type_id == "12"){
+                    $title = 'Leave Claim Application Approved';
+                    $body = 'Your replacement leave claim application has been approved';
+                }
+            }
+            else if($leaveApplication->status == "PENDING_1" || $leaveApplication->status == "PENDING_2" || $leaveApplication->status == "PENDING_3"){
+                $title = $leave_type." Leave Application Status Updated";
+
+                if($leaveApplication->leave_type_id == "12"){
+                    $title = 'Leave Claim Application Status Update';
+                }
+                if($leaveApplication->status == 'PENDING_1'){
+                    $currAuth = $leaveApplication->approver_one->name;
+                }
+                else if($leaveApplication->status == 'PENDING_2'){
+                    $currAuth = $leaveApplication->approver_two->name;
+                }
+                else if($leaveApplication->status == 'PENDING_3'){
+                    $currAuth = $leaveApplication->approver_three->name;
+                }
+                $body = 'Waiting approval by '.$currAuth;
+            }
+            else if($leaveApplication->status == 'DENIED_1'|| $leaveApplication->status == 'DENIED_2'|| $leaveApplication->status == 'DENIED_3' ){
+
+                $title = 'Leave Application Denied';
+
+                if($leaveApplication->leave_type_id == "12"){
+                    $title = 'Leave Claim Application Denied';
+                }
+                if($leaveApplication->status == 'DENIED_1'){
+                    $currAuth = $leaveApplication->approver_one->name;
+                }
+                else if($leaveApplication->status == 'DENIED_2'){
+                    $currAuth = $leaveApplication->approver_two->name;
+                }
+                else if($la->status == 'DENIED_3'){
+                    $currAuth = $leaveApplication->approver_three->name;
+                }
+                $body = 'Denied by '.$currAuth;
+            }
+        }
+        else{
+
+            if($personnel == "authority_1"){
+                    $user_id = $leaveApplication->approver_id_1;
+                    $title = "Leave Application Waiting Approval";
+                    $body = $leave_type." Leave Application by ".$leaveApplication->user->name." waiting for your approval.";
+
+            }
+            else if($personnel == "authority_2"){
+                $user_id = $leaveApplication->approver_id_2;
+                $title = "Leave Application Waiting Approval";
+                $body = $leave_type." Leave Application by ".$leaveApplication->user->name." waiting for your approval.";
+
+            }
+            else if($personnel == "authority_3"){
+                $user_id = $leaveApplication->approver_id_3;
+                $title = "Leave Application Waiting Approval";
+                $body = $leave_type." Leave Application by ".$leaveApplication->user->name." waiting for your approval.";
+            }
+        }
+
+
+        $response = $client->request('POST', $endpoint, [
+            'form_params' => [
+                'users' => [$user_id],
+                'title' => $title,
+                'body' => $body
+            ]
+        ]);
+
+        // url will be: http://my.domain.com/test.php?key1=5&key2=ABC;
+
+        $statusCode = $response->getStatusCode();
+        $content = $response->getBody();
+
+        // or when your server returns json
+        $content = json_decode($response->getBody(), true);
+        return $statusCode;
+    }
+
 }

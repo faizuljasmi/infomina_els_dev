@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class CalanderRemark extends Model
 {
+    protected $table = 'els_calendar_remarks';
+
     protected $fillable = [
         'remark_date_from', 'remark_date_from', 'remark_text', 'remark_by'
     ];

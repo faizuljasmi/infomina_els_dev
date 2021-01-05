@@ -127,22 +127,7 @@ background-size: 658px 455px;
     }
 </style>
 
-<script>
-document.getElementById("login").addEventListener('submit', functSubmit);
-var spinner = $('#loading');
-function functSubmit(event) {
-    spinner.show();
 
-    var email = $('#email').val();
-    var name   = email.substring(0, email.lastIndexOf("@"));
-    var domain = email.substring(email.lastIndexOf("@") +1);
-
-    if(domain == "infomina.co"){
-        var email = name.concat("@infomina.com.my");
-        $("#email").val(email);
-    }
-}
-</script>
 
 @stop
 

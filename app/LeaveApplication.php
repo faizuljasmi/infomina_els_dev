@@ -10,6 +10,8 @@ class LeaveApplication extends Model
     //use Notifiable;
     use Sortable;
 
+    protected $table = 'els_leave_applications';
+
     //Declare Fillable
     protected $fillable = [
         'date_from','date_to', 'date_resume',
@@ -27,6 +29,8 @@ class LeaveApplication extends Model
         'total_days',
         'status'
     ];
+
+    protected $appends = array('attachment_url');
 
     //One leave app has belongs to one user
     public function user(){
@@ -66,6 +70,14 @@ class LeaveApplication extends Model
     //One leave app has one canceller
     public function remarker(){
         return $this->hasOne(User::class,'id','remarker_id');
+    }
+
+    public function replacement_applications(){
+        return $this->hasMany(ReplacementRelation::class,'claim_id');
+    }
+
+    public function replacement_claim(){
+        return $this->hasOne(ReplacementRelation::class,'leave_id');
     }
 
     public function getAttachmentUrlAttribute(){

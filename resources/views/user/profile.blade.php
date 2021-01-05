@@ -22,50 +22,55 @@
                 <form>
                     <fieldset disabled>
                         <div class="form-row">
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="name">Name</label>
                                 <input type="name" class="form-control" id="name" placeholder="{{$user->name}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="staff_id">Staff ID</label>
                                 <input type="text" class="form-control" id="staff_id" placeholder="{{$user->staff_id}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="email">Email</label>
                                 <input type="email" class="form-control" id="email" placeholder="{{$user->email}}">
                             </div>
                             @if (Gate::forUser(Auth::user())->allows('admin-dashboard'))
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="level">User Type</label>
                                 <input type="text" class="form-control" id="level" placeholder="{{$user->user_type}}">
                             </div>
                             @endif
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="gender">Gender</label>
                                 <input type="email" class="form-control" id="email" placeholder="{{$user->gender}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="type">Employee Type</label>
                                 <input type="text" class="form-control" id="type" placeholder="{{$empType->name}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="type">Job Title</label>
                                 <input type="text" class="form-control" id="type" placeholder="{{$user->job_title}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="type">Join Date</label>
                                 <input type="text" class="form-control" id="type"
                                     placeholder="{{ \Carbon\Carbon::parse($user->join_date)->format('d/m/Y')}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="type">Emergency Contact Name</label>
                                 <input type="text" class="form-control" id="type"
                                     placeholder="{{$user->emergency_contact_name}}">
                             </div>
-                            <div class="form-group col-md-3">
+                            <div class="form-group col-md-6">
                                 <label for="type">Emergency Contact No.</label>
                                 <input type="text" class="form-control" id="type"
                                     placeholder="{{$user->emergency_contact_no}}">
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="type">Branch</label>
+                                <input type="text" class="form-control" id="type"
+                                    placeholder="{{$user->branch->name}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Employee Groups</label>
@@ -327,17 +332,13 @@
                         <tr>
                             <th>Leave Name</th>
                             @foreach($leaveTypes as $lt)
-                            @if($lt->name != "Replacement")
                             <td><strong>{{$lt->name}}</strong></td>
-                            @endif
                             @endforeach
                         </tr>
                         <tr>
                             <th>Entitled</th>
                             @foreach($leaveEnt as $le)
-                            @if($le->leave_type_id != '12')
                             <td class="table-primary">{{$le->no_of_days}}</td>
-                            @endif
                             @endforeach
                         </tr>
                         <tr>
@@ -353,7 +354,7 @@
                             @foreach($broughtFwd as $bf)
                             @if($bf->leave_type_id == '1')
                             <td class="table-success">{{isset($bf->no_of_days) ? $bf->no_of_days:'NA'}}</td>
-                            @elseif($bf->leave_type_id != '12')
+                            @else
                             <td class="table-secondary"></td>
                             @endif
                             @endforeach
@@ -366,7 +367,7 @@
                             </th>
                             @foreach($leaveEarn as $le)
                             @foreach($broughtFwd as $bf)
-                            @if($le->leave_type_id == $bf->leave_type_id && $le->leave_type_id != '12')
+                            @if($le->leave_type_id == $bf->leave_type_id )
                             <td class="table-success" data-toggle="tooltip"
                                 title="{{$le->no_of_days - $bf->no_of_days}} (Earned) + {{$bf->no_of_days}} (Brought Forward)">
                                 {{$le->no_of_days}}</td>
@@ -377,7 +378,6 @@
                         <tr>
                             <th>Taken</th>
                                     @foreach($leaveTak as $lt)
-                                    @if($lt->leave_type_id != '12')
                                     @if($lt->leave_type_id == '1')
                                     <?php $taken = $lt->no_of_days;
                                           $bfwd =  $broughtFwd[0]->no_of_days;
@@ -391,10 +391,9 @@
                                     @else
                                     <td class="table-danger">{{$lt->no_of_days}}</td>
                                     @endif
-                                    @endif
                                     @endforeach
                         </tr>
-                        <tr>
+                        {{-- <tr>
                             <th>Replacement</th>
                             @foreach($leaveEarn as $le)
                             @if($le->leave_type_id == "12")
@@ -411,7 +410,7 @@
                             <td class="table-secondary"></td>
                             <td class="table-secondary"></td>
                             <td class="table-secondary"></td>
-                        </tr>
+                        </tr> --}}
                         <tr>
                             <th>Burnt <i class="fas fa-info-circle" data-toggle="tooltip" data-placement="top"
                                 title="Unused brought forward leaves will go here on 1 July"></i></th>
@@ -430,13 +429,16 @@
                         <td class="table-secondary"></td>
                         <td class="table-secondary"></td>
                         <td class="table-secondary"></td>
+                        @if($burntReplacement != null)
+                        <td class="table-danger">{{$burntReplacement->no_of_days}}</td>
+                        @else
+                        <td class="table-danger">0</td>
+                        @endif
                         </tr>
                         <tr>
                             <th>Balance</th>
                             @foreach($leaveBal as $lb)
-                            @if($lb->leave_type_id != '12')
                             <td class="table-primary">{{$lb->no_of_days}}</td>
-                            @endif
                             @endforeach
                         </tr>
                     </tbody>

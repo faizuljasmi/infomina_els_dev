@@ -8,8 +8,10 @@ use App\User;
 
 class LeaveEntitlement extends Model
 {
+    protected $table = 'els_leave_entitlements';
+
     protected $fillable = [
-        'no_of_days', 
+        'no_of_days',
     ];
 
     //One leave ent belongs to one leave type

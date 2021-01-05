@@ -11,6 +11,7 @@
         "php": "^7.2",
         "consoletvs/charts": "6.*",
         "fideloper/proxy": "^4.0",
+        "guzzlehttp/guzzle": "^7.2",
         "jeroennoten/laravel-adminlte": "^3.0",
         "kyslik/column-sortable": "^6.3",
         "laravel/framework": "^6.2",

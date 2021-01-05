@@ -22,6 +22,7 @@ use App\LeaveBalance;
 use App\TakenLeave;
 use App\BroughtForwardLeave;
 use App\BurntLeave;
+use App\Branch;
 use Redirect,Response,DB,Config;
 use Datatables;
 
@@ -38,7 +39,8 @@ class RegistrationController extends Controller
         $empTypes = EmpType::orderBy('id', 'ASC')->get();
         //dd($empTypes);
         $empGroups = EmpGroup::orderBy('id', 'ASC')->get();
-        return view('registration.create')->with(compact('user','activeUsers','inactiveUsers','empTypes', 'empGroups'));
+        $branches = Branch::all();
+        return view('registration.create')->with(compact('user','activeUsers','inactiveUsers','empTypes', 'empGroups','branches'));
     }
 
     public function store(Request $request)
@@ -62,7 +64,7 @@ class RegistrationController extends Controller
         $user->gender = $request->gender;
         $user->emp_type_id = $request->emp_type_id;
         $user->emp_group_id = $request->emp_group_id;
-
+        $user->branch_id = $request->branch_id;
         $user->job_title = $request->job_title;
         $user->save();
         // $user = User::create(request(['name','staff_id','email','password','user_type','join_date', 'gender', 'emp_type_id','emp_group_id','job_title']));
@@ -98,13 +100,15 @@ class RegistrationController extends Controller
         //dd($leaveEnt);
         $leaveTypes = LeaveType::orderBy('id', 'ASC')->get();
         $burntLeave = BurntLeave::where('user_id',$user->id)->where('leave_type_id',1)->first();
-        return view('user.edit')->with(compact('user','user_insesh', 'users', 'authUsers', 'empType', 'empTypes', 'empGroup','empGroup2','empGroup3','empGroup4','empGroup5', 'empGroups', 'empAuth', 'leaveTypes', 'leaveEnt', 'leaveEarn', 'broughtFwd', 'leaveBal', 'leaveTak','burntLeave'));
+        $burntReplacement = BurntLeave::where('user_id',$user->id)->where('leave_type_id',12)->first();
+        $branches = Branch::all();
+        return view('user.edit')->with(compact('user','user_insesh', 'users', 'authUsers', 'empType', 'empTypes', 'empGroup','empGroup2','empGroup3','empGroup4','empGroup5', 'empGroups', 'empAuth', 'leaveTypes', 'leaveEnt', 'leaveEarn', 'broughtFwd', 'leaveBal', 'leaveTak','burntLeave','branches','burntReplacement'));
     }
 
     public function update(Request $request, User $user)
     {
         try {
-            $user->update($request->only('name', 'staff_id', 'email', 'user_type', 'join_date', 'gender', 'emp_type_id', 'emp_group_id','emp_group_two_id','emp_group_three_id','emp_group_four_id','emp_group_five_id', 'job_title', 'emergency_contact_name', 'emergency_contact_no'));
+            $user->update($request->only('name', 'staff_id', 'email', 'user_type', 'join_date','branch_id', 'gender', 'emp_type_id', 'emp_group_id','emp_group_two_id','emp_group_three_id','emp_group_four_id','emp_group_five_id', 'job_title', 'emergency_contact_name', 'emergency_contact_no'));
         } catch (\Exception $e) { // It's actually a QueryException but this works too
             if ($e->getCode() == 23000) {
                 return redirect()->route('user_view', ['user' => $user])->with('message', 'Staff ID has already been taken. User details not updated.');
@@ -140,7 +144,7 @@ class RegistrationController extends Controller
         $leaveBal = LeaveBalance::orderBy('leave_type_id', 'ASC')->where('user_id', '=', $user->id)->get();
         $leaveTak = TakenLeave::orderBy('leave_type_id', 'ASC')->where('user_id', '=', $user->id)->get();
 
-        $ann_taken_first_half = LeaveApplication::where('user_id',$user->id)->where('status','Approved')->where('leave_type_id',1)->where('created_at' ,'<=', '2020-06-30')->get();
+        $ann_taken_first_half = LeaveApplication::where('user_id',$user->id)->where('status','Approved')->where('leave_type_id',1)->whereBetween('created_at' ,['2021-01-01', '2021-06-30'])->get();
         $total_ann_taken_first_half = 0;
         foreach($ann_taken_first_half as $ann){
             $total_ann_taken_first_half += $ann->total_days;
@@ -175,7 +179,8 @@ class RegistrationController extends Controller
                 ->where('user_id', $user->id);
         })->sortable(['date_from'])->paginate(5, ['*'], 'history');
         $burntLeave = BurntLeave::where('user_id',$user->id)->where('leave_type_id',1)->first();
-        return view('user.profile')->with(compact('user','user_insesh', 'users', 'authUsers', 'empType', 'empGroup','empGroup2','empGroup3','empGroup4','empGroup5', 'empAuth', 'leaveTypes', 'leaveEnt', 'leaveEarn', 'broughtFwd', 'leaveBal', 'leaveTak','leaveHist','burntLeave','total_ann_taken_first_half'));
+        $burntReplacement = BurntLeave::where('user_id',$user->id)->where('leave_type_id',12)->first();
+        return view('user.profile')->with(compact('user','user_insesh', 'users', 'authUsers', 'empType', 'empGroup','empGroup2','empGroup3','empGroup4','empGroup5', 'empAuth', 'leaveTypes', 'leaveEnt', 'leaveEarn', 'broughtFwd', 'leaveBal', 'leaveTak','leaveHist','burntLeave','total_ann_taken_first_half','burntReplacement'));
     }
 
       public function deactivate(User $user)
@@ -207,7 +212,7 @@ class RegistrationController extends Controller
         $empTypes = EmpType::orderBy('id', 'ASC')->get();
         //dd($empTypes);
         $empGroups = EmpGroup::orderBy('id', 'ASC')->get();
-
-        return view('registration.create', ['users' => $activeUsers])->with(compact('user','activeUsers','inactiveUsers','empTypes', 'empGroups'));
+        $branches = Branch::all();
+        return view('registration.create', ['users' => $activeUsers])->with(compact('user','activeUsers','inactiveUsers','empTypes', 'empGroups','branches'));
     }
 }
