@@ -33,8 +33,8 @@ class RegistrationController extends Controller
     public function create()
     {
         $user = auth()->user();
-        $activeUsers = User::where('status','Active')->sortable(['staff_id'])->paginate(15,['*'],'active');
-        $inactiveUsers = User::where('status','Inactive')->sortable(['staff_id'])->paginate(15,['*'],'inactive');
+        $activeUsers = User::where('status','Active')->sortable(['id'])->paginate(15,['*'],'active');
+        $inactiveUsers = User::where('status','Inactive')->sortable(['id'])->paginate(15,['*'],'inactive');
         //dd($users);
         $empTypes = EmpType::orderBy('id', 'ASC')->get();
         //dd($empTypes);
