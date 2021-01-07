@@ -32,7 +32,7 @@
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="gender">Gender</label>
-                                <input type="email" class="form-control" id="email" placeholder="{{$user->gender}}">
+                                <input type="email" class="form-control" id="email" placeholder="{{$user->wspace_user->gender}}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="type">Employee Type</label>
@@ -44,22 +44,22 @@
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="type">Job Title</label>
-                                <input type="text" class="form-control" id="type" placeholder="{{$user->job_title}}">
+                                <input type="text" class="form-control" id="type" placeholder="{{$user->wspace_user->job_title}}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="type">Join Date</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{ \Carbon\Carbon::parse($user->join_date)->format('d/m/Y')}}">
+                                    placeholder="{{ \Carbon\Carbon::parse($user->wspace_user->join_date)->format('d/m/Y')}}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="type">Emergency Contact Name</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{$user->emergency_contact_name}}">
+                                    placeholder="{{$user->wspace_user->emergency_contact_name}}">
                             </div>
                             <div class="form-group col-md-3">
                                 <label for="type">Emergency Contact No.</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{$user->emergency_contact_no}}">
+                                    placeholder="{{$user->wspace_user->emergency_contact_no}}">
                             </div>
                         </div>
                     </fieldset>

@@ -144,7 +144,7 @@
                         @foreach($inactiveUsers as $u)
                         @if($u->id != auth()->user()->id && $u->status == 'Inactive')
                         <tr>
-                            <td>{{$u->staff_id}}</td>
+                            <td>{{$u->wspace_user->staff_id}}</td>
                             <td>{{$u->name}}</td>
                             <td>{{$u->user_type}}</td>
                             <td>

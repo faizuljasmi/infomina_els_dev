@@ -28,7 +28,7 @@
 <h1 class="m-0 text-dark">Apply Leave</h1>
 @endsection
 
-@if($user->emergency_contact_name == null || $user->emergency_contact_no == null)
+@if($user->wspace_user->emergency_contact_name == null || $user->wspace_user->emergency_contact_no == null)
 <script type="text/javascript">
     $(window).on('load', function() {
     $('#emergencyReminderCenter').modal('show');
@@ -291,7 +291,7 @@
                                             </span>
                                         </div>
                                         <input type="text" class="form-control float-right"
-                                            name="emergency_contact_name" value="{{$user->emergency_contact_name}}"
+                                            name="emergency_contact_name" value="{{$user->wspace_user->emergency_contact_name}}"
                                             required {{isset($user->emergency_contact_name) ? "readonly":''}}>
                                         <div class="invalid-feedback">
                                             Please update your emergency contact at "Edit My Profile" or fill it in here
@@ -309,7 +309,7 @@
                                             </span>
                                         </div>
                                         <input type="text" class="form-control float-right" name="emergency_contact_no"
-                                            value="{{$user->emergency_contact_no}}" required
+                                            value="{{$user->wspace_user->emergency_contact_no}}" required
                                             {{isset($user->emergency_contact_no) ? "readonly":''}}>
                                         <div class="invalid-feedback">
                                             Please update your emergency contact at "Edit My Profile" or fill it in here
