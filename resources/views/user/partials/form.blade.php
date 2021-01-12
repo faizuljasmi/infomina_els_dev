@@ -27,7 +27,7 @@
         <div class="form-group col-md-6">
             <label for="level">Gender</label>
             <select class="form-control" id="gender" name="gender">
-                <option {{isset($user->gender) && $user->gender == 'Male' ? 'selected':''}}>Male</option>
+                <option {{isset($user->wspace_user->gender) && $user->wspace_user->gender == 'Male' ? 'selected':''}}>Male</option>
                 <option {{isset($user->gender) && $user->gender == 'Female' ? 'selected':''}}>Female</option>
             </select>
         </div>
