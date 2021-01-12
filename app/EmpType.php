@@ -8,7 +8,7 @@ use App\LeaveEntitlement;
 
 class EmpType extends Model
 {
-    protected $table = 'els_emp_types';
+    protected $table = '_employee_types';
 
     protected $fillable = [
         'name',

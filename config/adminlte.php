@@ -301,15 +301,11 @@ return [
 
         ['header' => ' My Settings', ],
         [
-            'text' => 'Edit My Profile',
+            'text' => 'Profile',
             'url'  => '/myprofile',
             'icon' => 'fas fa-fw fa-user-edit',
         ],
-        [
-            'text' => 'Change Password',
-            'url'  => '/change-password',
-            'icon' => 'fas fa-fw fa-unlock-alt',
-        ],
+
         // ['header' => 'labels'],
         // [
         //     'text'       => 'important',

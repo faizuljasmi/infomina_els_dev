@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class EmpGroup extends Model
 {
-    protected $table = 'els_emp_groups';
+    protected $table = '_employee_groups';
 
     protected $fillable = [
         'name', 'group_leader_id',
