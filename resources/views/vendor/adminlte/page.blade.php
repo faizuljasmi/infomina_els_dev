@@ -124,7 +124,7 @@ config('adminlte.sidebar_scrollbar_theme') : '') . ' ' . (config('adminlte.sideb
                     @yield('content_top_nav_right')
                     @if(Auth::user())
                     <li class="nav-item">
-                        <a class="nav-link" href="{{url('../app')}}">
+                        <a class="nav-link" href="{{url('/app')}}">
                             Workspace <img class="mr-2" src="{{asset('/images/wspace_logo.jpg')}}" style="float:left;width:auto;height:100%;">
                         </a>
                     </li>
