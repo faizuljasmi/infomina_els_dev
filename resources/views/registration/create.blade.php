@@ -69,7 +69,7 @@
                             @foreach($activeUsers as $u)
                             @if($u->id != auth()->user()->id && $u->status == 'Active')
                             <tr>
-                                <td>{{$u->wspace_user->staff_id->first()->val}}</td>
+                                <td>{{isset($u->wspace_user->staff_id)? $u->wspace_user->staff_id : '-'}}</td>
                                 <td>{{$u->name}}</td>
                                 <td>{{$u->user_type}}</td>
                                 <td>
@@ -144,7 +144,7 @@
                         @foreach($inactiveUsers as $u)
                         @if($u->id != auth()->user()->id && $u->status == 'Inactive')
                         <tr>
-                            <td>{{$u->wspace_user->staff_id}}</td>
+                            <td>{{isset($u->wspace_user->staff_id)? $u->wspace_user->staff_id : '-'}}</td>
                             <td>{{$u->name}}</td>
                             <td>{{$u->user_type}}</td>
                             <td>
