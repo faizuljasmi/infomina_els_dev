@@ -28,7 +28,7 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="staff_id">Staff ID</label>
-                                <input type="text" class="form-control" id="staff_id" placeholder="{{$user->wspace_user->staff_id}}">
+                                <input type="text" class="form-control" id="staff_id" placeholder="{{isset($user->wspace_user->staff_id) ? $user->wspace_user->staff_id : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="email">Email</label>
@@ -42,7 +42,7 @@
                             @endif
                             <div class="form-group col-md-6">
                                 <label for="gender">Gender</label>
-                                <input type="email" class="form-control" id="email" placeholder="{{$user->wspace_user->gender}}">
+                                <input type="email" class="form-control" id="email" placeholder="{{isset($user->wspace_user->gender) ? $user->wspace_user->gender : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Employee Type</label>
@@ -50,22 +50,22 @@
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Job Title</label>
-                                <input type="text" class="form-control" id="type" placeholder="{{$user->wspace_user->job_title}}">
+                                <input type="text" class="form-control" id="type" placeholder="{{isset($user->wspace_user->job_title) ? $user->wspace_user->job_title : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Join Date</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{ \Carbon\Carbon::parse($user->wspace_user->join_date)->format('d/m/Y')}}">
+                                    placeholder="{{ isset($user->wspace_user->join_date) ? \Carbon\Carbon::parse($user->wspace_user->join_date)->format('d/m/Y') : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Emergency Contact Name</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{$user->wspace_user->emergency_contact_name}}">
+                                    placeholder="{{isset($user->wspace_user->emergency_contact_name) ? $user->wspace_user->emergency_contact_name : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Emergency Contact No.</label>
                                 <input type="text" class="form-control" id="type"
-                                    placeholder="{{$user->wspace_user->emergency_contact_no}}">
+                                    placeholder="{{isset($user->wspace_user->emergency_contact_no) ? $user->wspace_user->emergency_contact_no : '-'}}">
                             </div>
                             <div class="form-group col-md-6">
                                 <label for="type">Branch</label>
