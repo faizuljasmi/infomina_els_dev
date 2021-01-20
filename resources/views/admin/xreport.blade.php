@@ -15,8 +15,11 @@
     #loading {
         width: 100%; height: 100%; top: 0; left: 0; position: fixed; opacity: 0.7; background-color: #fff; z-index: 99; text-align: center; display: none;
     }
-    #loading-modal {
+    #loading-modal-status {
         width: 100%; height: 100%; top: 0; left: 0; position: fixed; opacity: 0.7; background-color: #fff; z-index: 99; text-align: center; display: none;
+    }
+    #loading-modal-history {
+        position: fixed; opacity: 0.7; background-color: #fff; z-index: 99; text-align: center; display: none;
     }
     #loading-image {
         position: fixed;
@@ -27,7 +30,6 @@
         z-index: 100;
     }
 </style>
-
 @if(session()->has('error'))
 <div class="alert alert-danger alert-dismissible fade show" role="alert">
     <i class="icon fa fa-times"></i>
@@ -37,7 +39,6 @@
     </button>
 </div>
 @endif
-
 <div class="mt-2 col-md-12">
     <div class="card">
         <div class="card-header bg-teal">
@@ -48,7 +49,7 @@
                 <div class="row">
                     <div class="card col-8">
                         <div class="card-body">
-                            <form id="search_form" class="input-horizontal" action="{{ route('index') }}" method="get">
+                            <form id="search_form" class="input-horizontal" action="{{ route('search') }}" method="get">
                                 <div class="form-inline form-group">
                                     <!-- Name -->
                                     <div class="input-group col-12">
@@ -109,12 +110,12 @@
                             <div class="d-flex justify-content-end col-12">
                                 <button data-toggle="collapse" data-target="#importCard" class="btn btn-warning mr-1">Import</button>
                                 <button data-toggle="collapse" data-target="#exportCard" class="btn btn-warning mr-1">Export</button>
-                                <button id="reset_btn" type="button" class="btn btn-primary mr-1">Reset</button>
+                                <button onclick="resetForm()" type="button" class="btn btn-primary mr-1">Reset</button>
                                 <button form="search_form" type="submit" class="btn btn-primary">Search</button>
                             </div>
                             <form id="btnExportBal" action="{{ route('excel_export_bal') }}" enctype="multipart/form-data"></form>
-                            <form id="btnExportAll" action="{{ route('excel_export') }}" enctype="multipart/form-data"></form>
-                            <form id="btnExportCurrent" action="{{ route('excel_export') }}" enctype="multipart/form-data">
+                            <form id="btnExportAll" action="{{ route('excel_export_all') }}" enctype="multipart/form-data"></form>
+                            <form id="btnExportSearch" action="{{ route('excel_export_search') }}" enctype="multipart/form-data">
                                 <input type="hidden" name="excel_name" value="{{isset($search_name)? $search_name: ''}}">
                                 <input type="hidden" name="excel_date_from" value="{{isset($date_from)? $date_from: ''}}">
                                 <input type="hidden" name="excel_date_to" value="{{isset($date_to)? $date_to: ''}}">
@@ -148,21 +149,21 @@
                 <div id="exportCard" class="collapse">
                 <div class="card col-12">
                     <div class="card-body d-flex justify-content-center">
-                        <button form="btnExportCurrent" type="submit" class="btn btn-success mr-1">Export Current</button>
+                        <button form="btnExportSearch" type="submit" class="btn btn-success mr-1">Export Current</button>
                         <button form="btnExportAll" type="submit" class="btn btn-success mr-1">Export All Applications</button>
                         <button form="btnExportBal" type="submit" class="btn btn-success mr-1">Export Leave Balance</button>
                     </div>
                 </div>
                 </div>
-                @if ($leave_app->count() > 0)
-                    <h6><strong>Displaying {{$leave_app->count()}} out of {{$leave_app->total()}} leave applications.</strong></h6>
+                @if ($users->count() > 0)
+                    <h6><strong>Displaying {{$users->count()}} out of {{$users->total()}} leave applications.</strong></h6>
                     <h6><span class="badge badge-info">{{ isset($leave_type)? $leave_type: '' }}</span></h6>
                 @endif
-                <table class="table table-sm table-bordered table-striped table-hover" id="la_table">
+                <table class="table table-sm table-bordered table-striped table-hover">
                 <thead>
                 <tr>
                     <th>No.</th>
-                    <th>Name</th>
+                    <th>Name @sortablelink('name','',[])</th>
                     <th>Day(s)</th>
                     <th>Type</th>
                     <th width="10%">From Date</th>
@@ -176,49 +177,70 @@
                 </thead>
                 <tbody>
                 <?php $count = 0;?>
-                @foreach($leave_app as $la)
+                @foreach($users as $row)
                 <tr>
                     <td>{{ ++$count }}</td>
-                    <td>{{ $la->user->name }}</td>
-                    <td>{{ $la->total_days }}</td>
-                    <td>{{ $la->leaveType->name }}</td>
-                    <td>{{ $la->date_from }}</td>
-                    <td>{{ $la->date_to }}</td>
-                    <td>{{ $la->date_resume }}</td>
+                    <td class="user_name">{{ $row->name }}</td>
+                    <td>{{ $row->total_days }}</td>
+                    <td>{{ $row->leave_type_name }}</td>
+                    <td>{{ $row->date_from }}</td>
+                    <td>{{ $row->date_to }}</td>
+                    <td>{{ $row->date_resume }}</td>
                     <td align="center">
                         <button type="button" class="btn btn-sm btn-info" data-toggle="popover" data-trigger="focus" title="Details"
-                        data-content="{{ $la->reason }}">View</button>
+                        data-content="{{ $row->reason }}">View</button>
                     </td>
                     <td align="center">
-                        @if ($la->status == "APPROVED" )
+                        @if ($row->status == "APPROVED" )
                             <button type="button" class="btn buttonStat btn-sm btn-success " disabled>Approved</button>
-                        @elseif ($la->status == "CANCELLED")
+                        @elseif ($row->status == "CANCELLED")
                             <button type="button" class="btn buttonStat btn-sm btn-warning" disabled>Cancelled</button>
-                        @elseif ($la->status == "DENIED_1" || $la->status == "DENIED_2" || $la->status == "DENIED_3")
+                        @elseif ($row->status == "DENIED_1" || $row->status == "DENIED_2" || $row->status == "DENIED_3")
                             <button type="button" class="btn buttonStat btn-sm btn-danger" disabled>Rejected</button>
                         @else
                             <button type="button" class="btn buttonStat btn-sm btn-primary" disabled>In Progress</button>
                         @endif
                     </td>
-                    <td>{{\Carbon\Carbon::parse($la->created_at)->isoFormat('Y-MM-DD')}}</td>
+                    <td>{{\Carbon\Carbon::parse($row->created)->isoFormat('Y-MM-DD')}}</td>
                     <td align="center">
-                        <button type="button" id="change_status_btn" class="btn btn-warning btn-sm" data-toggle="tooltip" data-placement="left" title="Change Status" value="{{ $la->id }}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button type="button" id="view_history_btn" class="btn btn-primary btn-sm" data-toggle="tooltip" data-placement="left" title="View History" value="{{ $la->id }}" data-user="{{ $la->user->name }}">
-                            <i class="fas fa-history"></i>
-                        </button>
+                        <span data-toggle="modal" data-target="#change_status_modal">
+                            <button type="button" class="btn btn-primary btn-sm use-this-status" data-toggle="tooltip" data-placement="left" title="Change Status">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        </span>
+                        <span data-toggle="modal" data-target="#history_modal">
+                            <button type="button" class="btn btn-primary btn-sm use-this-history" data-toggle="tooltip" data-placement="left" title="View History">
+                                <i class="fas fa-history"></i>
+                            </button>
+                        </span>
                     </td>
+                    <td class="d-none approver">
+                        @if($row->status == 'PENDING_1')
+                            {{$row->approver_id_1}}
+                        @elseif($row->status == 'PENDING_2')
+                            {{$row->approver_id_2}}
+                        @elseif($row->status == 'PENDING_3')
+                            {{$row->approver_id_3}}
+                        @elseif($row->status == 'DENIED_1')
+                            {{$row->approver_id_1}}
+                        @elseif($row->status == 'DENIED_2')
+                            {{$row->approver_id_2}}
+                        @elseif($row->status == 'DENIED_3')
+                            {{$row->approver_id_3}}
+                        @endif
+                    </td>
+                    <td class="d-none user_leave_status">{{ $row->status }}</td>
+                    <td class="d-none leave_app_id">{{ $row->leave_app_id }}</td>
                 </tr>
                 @endforeach
-                @if ($leave_app->count() == 0)
+                @if ($users->count() == 0)
                     <tr align="center">
                         <td colspan="11"><strong>No records found.</strong></td>
                     </tr>
                 @endif
                 </tbody>
                 </table>
-                {!! $leave_app->appends(\Request::except('page'))->render() !!}
+                {!! $users->appends(\Request::except('page'))->render() !!}
                 </div>
             </div>
             </div>
@@ -239,35 +261,38 @@
 <div class="modal fade" id="change_status_modal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Change Leave Status</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="leave_id">
+        <div class="modal-header">
+            <h5 class="modal-title">Change Status</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <form id="change_status_form" action="{{ route('change_status') }}" method="get">
                 <div class="mb-3">
-                    <h6>Hi {{ Auth::user()->name }}, you're about to edit the leave application of <b id="la_user"></b>.</h6>
-                    <h6>Current Leave Status : <button id="la_status" type="button" class="btn buttonStat btn-sm" disabled></button>
+                    <h6>Hi {{ $edited_by->name }}, you are about to edit leave application status for <b id="status_user_name"></b>.</h6>
+                    <h6>Current Leave Status : <button id="status_leave_status" type="button" class="btn buttonStat btn-sm" disabled></button>
                 </div>
                 <div class="mb-3">
-                    <h6><span id="show_status" class="d-none badge badge-warning"><b id="approver_name"></b></span><h6>
+                    <h6><span id="load_data" class="d-none badge badge-warning">Fetching information...</b></span><h6>
+                    <h6><span id="disp_name" class="d-none badge badge-warning"><b id="approver_name"></b></span><h6>
                 </div>
-                <select class="form-control mb-3" id="new_status">
-                    <option value="" disabled selected>Select Leave Status</option>
+                <select class="form-control mb-3" name="change_status" id="change_status">
+                    <option value="" disabled selected>Change Leave Status</option>
                     <option value="APPROVE">Approve</option>
                     <option value="REJECT">Reject</option>
                     <option value="CANCEL">Cancel</option>
                 </select>
                 <textarea class="form-control" name="status_remarks" id="status_remarks" placeholder="Add Remarks"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                <button type="button" id="save_new_status" class="btn btn-primary">Save changes</button>
-            </div>
+                <input type="hidden" id="status_app_id" name="status_app_id">
+            </form>
         </div>
-        <div id="loading-modal">
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button form="change_status_form" type="submit" class="btn btn-primary load-button">Save changes</button>
+        </div>
+        </div>
+        <div id="loading-modal-status">
             <div id="loading-image">
                 <figure>
                     <img src="{{url('images/loader.gif')}}" alt="Loading..." />
@@ -290,12 +315,11 @@
             </button>
         </div>
         <div class="modal-body">
-            <input type="hidden" id="leave_id_history">
-            <h6>Leave application's history for <b id="history_user"></b>.<h6>
+            <h6>Leave application's history of <b id=history_name></b>.<h6>
             <table class="table table-sm table-bordered table-striped table-hover">
                 <thead>
                     <tr>
-                        <th>Action</th>
+                        <th>Actions</th>
                         <th>Edited By</th>
                         <th>Edited Date</th>
                         <th>Remarks</th>
@@ -308,181 +332,27 @@
         <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
         </div>
+        <div id="loading-modal-history">
+            <div id="loading-image">
+                <figure>
+                    <img src="{{url('images/loader.gif')}}" alt="Loading..." />
+                    <figcaption>Hold on...</figcaption>
+                </figure>
+            </div>
+        </div>
     </div>
 </div>
 
 <script>
 
-$("#la_table").on('click', '#change_status_btn', function()
-{
+$('#change_status_form').submit(function() {
+    var spinner = $('#loading-modal-status');
+    spinner.show();
+});
+
+$('#search_form').submit(function() {
     var spinner = $('#loading');
     spinner.show();
-
-    $('#leave_id').val('');
-
-    var mode = 'isView';
-    var leave_id = this.value;
-
-    if (leave_id != null) {
-        $('#leave_id').val(leave_id);
-        console.log(leave_id);
-    }
-
-    $('#save_new_status').attr('disabled', true);
-
-    $.ajaxSetup({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-    });
-        
-    $.ajax({
-        method: 'POST',
-        url: '/change-leave-status',
-        dataType: 'json',
-        data: {mode:mode, leave_id:leave_id},
-        success: function (data) {
-            // console.log(data, 'data');
-
-            var la_user = data.leave_app.user.name;
-            var leave_status = data.leave_app.status;
-            var leave_type = data.leave_app.leave_type;
-            var user_id = data.leave_app.user_id;
-
-            $('#la_user').html(la_user);
-            $('#leave_type').val(leave_type);
-            $('#user_id').val(user_id);
-
-            $("#show_status").addClass('d-none');
-            $('#la_status').html('').removeClass('btn-primary');
-            $('#la_status').html('').removeClass('btn-danger');
-            $('#la_status').html('').removeClass('btn-success');
-            $('#la_status').html('').removeClass('btn-warning');
-
-            if (leave_status == 'PENDING_1' || leave_status == 'PENDING_2' || leave_status == 'PENDING_3') {
-                $('#la_status').html('In Progress').addClass('btn-primary');
-
-                if (leave_status == 'PENDING_1') {
-                    $('#approver_name').html('Pending at '+data.leave_app.approver_one.name+'. (Level 1)');
-                } else if (leave_status == 'PENDING_2') {
-                    $('#approver_name').html('Pending at '+data.leave_app.approver_two.name+'. (Level 2)');
-                } else if (leave_status == 'PENDING_3') {
-                    $('#approver_name').html('Pending at '+data.leave_app.approver_three.name+'. (Level 3)');
-                } 
-
-                $('#show_status').removeClass('d-none');
-            } else if (leave_status == 'DENIED_1' || leave_status == 'DENIED_2' || leave_status == 'DENIED_3') {
-                $('#la_status').html('Rejected').addClass('btn-danger');
-
-                if (leave_status == 'DENIED_1') {
-                    $('#approver_name').html('Rejected by '+data.leave_app.approver_one.name+'. (Level 1)');
-                } else if (leave_status == 'DENIED_2') {
-                    $('#approver_name').html('Rejected by '+data.leave_app.approver_two.name+'. (Level 2)');
-                } else if (leave_status == 'DENIED_3') {
-                    $('#approver_name').html('Rejected by '+data.leave_app.approver_three.name+'. (Level 3)');
-                } 
-
-                $('#show_status').removeClass('d-none');
-            } else if (leave_status == 'APPROVED') {
-                $('#la_status').html('Approved').addClass('btn-success');
-            } else if (leave_status == 'CANCELLED') {
-                $('#la_status').html('Cancelled').addClass('btn-warning');
-            }
-
-            $('#change_status_modal').modal('show');
-            spinner.hide();
-        }
-    });
-});
-
-$("#change_status_modal").on('change', '#new_status', function()
-{
-    $('#save_new_status').attr('disabled', false);
-});
-
-$("#change_status_modal").on('click', '#save_new_status', function()
-{
-    var spinner = $('#loading-modal');
-    spinner.show();
-
-    var mode = 'isEdit';
-    var leave_id = $('#leave_id').val();
-    var new_status = $('#new_status').val();
-    var status_remarks = $('#status_remarks').val();
-
-    $.ajaxSetup({
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-    });
-        
-    $.ajax({
-        method: 'POST',
-        url: '/change-leave-status',
-        dataType: 'json',
-        data: {mode:mode, leave_id:leave_id, new_status:new_status, status_remarks:status_remarks},
-        success: function (data) {
-            // console.log(data, 'data');
-            location.reload();
-            spinner.hide();
-        }
-    });
-});
-
-$("#la_table").on('click', '#view_history_btn', function()
-{
-    var spinner = $('#loading');
-    spinner.show();
-
-    $('#leave_id_history').val('');
-
-    var leave_id = this.value;
-
-    if (leave_id != null) {
-        $('#leave_id_history').val(leave_id);
-    }
-
-    var history_user = $(this).data('user');
-    $('#history_user').html(history_user);
-
-    $('#history_table tr').remove();
-
-    $.ajaxSetup({
-    headers: {
-        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-        }
-    });
-
-    $.ajax({
-        method: 'POST',
-        url: '/load-history',
-        dataType: 'json',
-        data: {leave_id:leave_id},
-        success: function (data) {
-            // console.log(data, "data");
-            var history = "";
-            var html = "";
-            for(var i = 0; i < data.histories.length; i++){
-                history = data.histories[i];
-                var action = history.action;
-                if ( history.remarks != null ) {
-                    var remarks = history.remarks;
-                } else {
-                    var remarks = "N/A";
-                }
-                var date = history.created_at;
-                var created_at = date.substring(0, 10);
-                var edited_by = history.editor.name;
-                html += '<tr><td>'+action+'</td><td>'+edited_by+'</td><td>'+created_at+'</td><td>'+remarks+'</td></tr>';
-            }
-            if ( data.histories.length == 0) {
-                html += '<tr align="center"><td colspan="4">No history found.</td></tr>';
-            }
-            $('#history_table').append(html);
-            $('#history_modal').modal('show');
-            spinner.hide();
-        }
-    })
 });
 
 var route = "{{ url('reports/autocomplete') }}";
@@ -515,19 +385,19 @@ function drawChart() {
     var cancel_no = parseInt(cancel);
 
     var data = google.visualization.arrayToDataTable([
-        ['Task', 'Applications'],
-        ['Pending', pending_no],
-        ['Rejected', reject_no],
-        ['Cancelled', cancel_no],
-        ['Approved', approve_no],
-    ]);
+    ['Task', 'Applications'],
+    ['Pending', pending_no],
+    ['Rejected', reject_no],
+    ['Cancelled', cancel_no],
+    ['Approved', approve_no],
+]);
 
-    // Optional; add a title and set the width and height of the chart
-    var options = {'width':350, 'height':200, 'pieHole':0.1};
+// Optional; add a title and set the width and height of the chart
+var options = {'width':350, 'height':200, 'pieHole':0.1};
 
-    // Display the chart inside the <div> element with id="piechart"
-    var piechart = new google.visualization.PieChart(document.getElementById('piechart'));
-    piechart.draw(data, options);
+// Display the chart inside the <div> element with id="piechart"
+var piechart = new google.visualization.PieChart(document.getElementById('piechart'));
+piechart.draw(data, options);
 }
 
 
@@ -538,24 +408,143 @@ $(function () {
 
 })
 
-$('#search_form').submit(function() 
-{
-    var spinner = $('#loading');
-    spinner.show();
+$(".use-this-status").click(function() {
+
+    var row = $(this).closest("tr");    // Find the row
+    var name = row.find(".user_name").html();   // Find the data
+    var status = row.find(".user_leave_status").html();
+    var app_id = row.find(".leave_app_id").html();
+    var approver_id = row.find(".approver").html();
+
+    var loader = $('#load_data');
+
+    if ( status == "APPROVED" || status == "CANCELLED") {
+        console.log("test");
+    } else {
+        loader.removeClass("d-none");
+    }
+
+    $("#status_leave_status").removeClass("btn-primary");
+    $("#status_leave_status").removeClass("btn-danger");
+    $("#status_leave_status").removeClass("btn-success");
+    $("#status_leave_status").removeClass("btn-warning");
+
+    if ( status == "PENDING_1" || status == "PENDING_2" || status == "PENDING_3" ) {
+        $("#status_leave_status").html("In Progress").addClass("btn-primary");
+    } else if ( status == "DENIED_1" || status == "DENIED_2" || status == "DENIED_3" ) {
+        $("#status_leave_status").html("Rejected").addClass("btn-danger");
+    } else if ( status == "APPROVED" ) {
+        $("#status_leave_status").html('Approved').addClass("btn-success");
+    } else if ( status == "CANCELLED" ) {
+        $("#status_leave_status").html("Cancelled").addClass("btn-warning");
+    }
+
+    $("#status_user_name").html(name); // Set back to HTML
+    $("#status_app_id").val(app_id);
+
+    $("#approver_name").empty();
+    $("#disp_name").addClass("d-none");
+
+    $.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
+
+    $.ajax({
+        method: 'POST',
+        url: '/load-approver',
+        dataType: 'json',
+        data: approver_id,
+        success: function (data) {
+            var content = data.approver_name.name;
+            console.log(content);
+            if ( status == "PENDING_1" || status == "PENDING_2" || status == "PENDING_3" ) {
+                $("#disp_name").removeClass("d-none")
+                if ( status == "PENDING_1" ) {
+                    $("#approver_name").html("Pending approval from "+content+" ( LEVEL 1 )");
+                } else if ( status == "PENDING_2" ) {
+                    $("#approver_name").html("Pending approval from "+content+" ( LEVEL 2 )");
+                } else if ( status == "PENDING_3" ) {
+                    $("#approver_name").html("Pending approval from "+content+" ( LEVEL 3 )");
+                }
+            } else if ( status == "DENIED_1" || status == "DENIED_2" || status == "DENIED_3" ) {
+                $("#disp_name").removeClass("d-none");
+                if ( status == "DENIED_1" ) {
+                    $("#approver_name").html("Application rejected by "+content+" ( LEVEL 1 )");
+                } else if ( status == "DENIED_2" ) {
+                    $("#approver_name").html("Application rejected by "+content+" ( LEVEL 2 )");
+                } else if ( status == "DENIED_3" ) {
+                    $("#approver_name").html("Application rejected by "+content+" ( LEVEL 3 )");
+                }
+            }
+            loader.addClass("d-none");
+            // console.log(data.approver_name.name, "Masuk AJAX !!!");
+        }
+    })
+
 });
 
-$('#reset_btn').click(function()
-{
-    var spinner = $('#loading');
+$(".use-this-history").click(function() {
+
+    var spinner = $('#loading-modal-history');
     spinner.show();
 
-    $('#name').val('');
-    $('#date_from').val('');
-    $('#date_to').val('');
-    $('#leave_type').val('');
-    $('#leave_status').val('');
-    window.location.href = "{{ route('index') }}";
+    var row = $(this).closest("tr");    // Find the row
+    var name = row.find(".user_name").html();   // Find the data
+    var app_id = row.find(".leave_app_id").html();
+
+    $("#history_name").html(name);
+
+    $('#history_table tr').remove();
+
+    $.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
+
+    $.ajax({
+        method: 'POST',
+        url: '/load-history',
+        dataType: 'json',
+        data: app_id,
+        success: function (data) {
+            console.log(data, "Masuk AJAX !!!");
+            var applications = "";
+            var html = "";
+            for(var i = 0; i < data.history.length; i++){
+                applications = data.history[i];
+                var action = applications.action;
+                if ( applications.remarks != null ) {
+                    var remarks = applications.remarks;
+                } else {
+                    var remarks = "N/A";
+                }
+                var date = applications.created;
+                var carbondate = date.substring(0, 10);
+                var created_at = carbondate;
+                var edited_by = applications.name;
+                html += '<tr><td>'+action+'</td><td>'+edited_by+'</td><td>'+carbondate+'</td><td>'+remarks+'</td></tr>';
+            }
+            if ( data.history.length == 0) {
+                html += '<tr align="center"><td  colspan="4">No history found.</td></tr>';
+            }
+            $('#history_table').append(html);
+            spinner.hide();
+        }
+    })
 });
 
+function resetForm() {
+
+    document.getElementById("name").value = '';
+    document.getElementById("date_from").value = '';
+    document.getElementById("date_to").value = '';
+    document.getElementById("leave_type").value = '';
+    document.getElementById("leave_status").value = '';
+    window.location.href = "{{ route('search') }}";
+
+}
 </script>
 @endsection

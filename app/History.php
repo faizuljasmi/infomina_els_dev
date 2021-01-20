@@ -10,6 +10,10 @@ class History extends Model
 
     //One history belongs to one leave application
     public function application(){
-        return $this->belongsTo(LeaveApplication::class);
+        return $this->belongsTo(LeaveApplication::class, 'leave_application_id');
+    }
+
+    public function editor(){
+        return $this->belongsTo(User::class,'user_id');
     }
 }
